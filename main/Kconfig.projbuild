@@ -1,0 +1,20 @@
+menu "Example Configuration"
+
+    config EXAMPLE_ENABLE_SSE_HANDLER
+        bool "Enable Server-Sent Events (SSE) handler"
+        default n
+        help
+            Enable this option to use Server-Sent Events (SSE) functionality.
+            This will allow the server to push real-time updates to the client over an HTTP connection.
+
+endmenu
+
+menu "My WiFi Config"
+    config MY_WIFI_SSID
+        string "WiFi SSID"
+        default "changeme"
+
+    config MY_WIFI_PASSWORD
+        string "WiFi Password"
+        default "changeme"
+endmenu

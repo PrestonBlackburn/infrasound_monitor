@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100..900;1,100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Custom Font Family */
+  --font-sans: "Jost", system-ui, -apple-system, sans-serif;
+
+  /* Cinnamon Wood Theme */
+  --color-cinnamon-wood-50: oklch(96.03% 0.010 48.62);
+  --color-cinnamon-wood-100: oklch(92.06% 0.020 45.25);
+  --color-cinnamon-wood-200: oklch(84.14% 0.043 45.89);
+  --color-cinnamon-wood-300: oklch(76.16% 0.066 45.33);
+  --color-cinnamon-wood-400: oklch(68.33% 0.092 45.20);
+  --color-cinnamon-wood-500: oklch(60.79% 0.116 45.05);
+  --color-cinnamon-wood-600: oklch(51.70% 0.098 44.47);
+  --color-cinnamon-wood-700: oklch(42.24% 0.077 44.37);
+  --color-cinnamon-wood-800: oklch(32.36% 0.055 44.77);
+  --color-cinnamon-wood-900: oklch(21.53% 0.030 44.37);
+  --color-cinnamon-wood-950: oklch(18.16% 0.022 49.61);
+
+  /* Dusty Olive Theme */
+  --color-dusty-olive-50: oklch(96.88% 0.007 106.52);
+  --color-dusty-olive-100: oklch(93.63% 0.015 110.89);
+  --color-dusty-olive-200: oklch(87.07% 0.027 106.95);
+  --color-dusty-olive-300: oklch(80.50% 0.042 108.83);
+  --color-dusty-olive-400: oklch(73.64% 0.055 108.87);
+  --color-dusty-olive-500: oklch(66.86% 0.070 110.06);
+  --color-dusty-olive-600: oklch(56.82% 0.058 109.31);
+  --color-dusty-olive-700: oklch(46.54% 0.047 109.65);
+  --color-dusty-olive-800: oklch(35.40% 0.033 107.95);
+  --color-dusty-olive-900: oklch(23.45% 0.020 112.17);
+  --color-dusty-olive-950: oklch(19.32% 0.013 107.60);
+
+  /* Taupe Theme */
+  --color-taupe-50: oklch(96.54% 0.006 75.41);
+  --color-taupe-100: oklch(92.97% 0.012 79.78);
+  --color-taupe-200: oklch(85.68% 0.026 75.24);
+  --color-taupe-300: oklch(78.42% 0.038 76.53);
+  --color-taupe-400: oklch(71.11% 0.053 76.64);
+  --color-taupe-500: oklch(63.41% 0.066 75.07);
+  --color-taupe-600: oklch(54.17% 0.056 76.12);
+  --color-taupe-700: oklch(44.20% 0.043 75.82);
+  --color-taupe-800: oklch(33.73% 0.031 74.40);
+  --color-taupe-900: oklch(22.52% 0.017 79.37);
+  --color-taupe-950: oklch(18.95% 0.013 77.82);
+
+  /* Sand Theme */
+  --color-sand-50: oklch(97.10% 0.011 106.59);
+  --color-sand-100: oklch(94.01% 0.019 103.43);
+  --color-sand-200: oklch(87.95% 0.037 103.79);
+  --color-sand-300: oklch(81.83% 0.056 104.18);
+  --color-sand-400: oklch(75.93% 0.077 104.73);
+  --color-sand-500: oklch(69.71% 0.094 105.07);
+  --color-sand-600: oklch(59.32% 0.079 105.08);
+  --color-sand-700: oklch(48.13% 0.061 104.89);
+  --color-sand-800: oklch(36.58% 0.044 104.82);
+  --color-sand-900: oklch(24.02% 0.025 104.63);
+  --color-sand-950: oklch(19.79% 0.019 103.12);
+
+  /* Dark Khaki Theme */
+  --color-dark-khaki-50: oklch(96.65% 0.007 97.35);
+  --color-dark-khaki-100: oklch(93.51% 0.013 102.02);
+  --color-dark-khaki-200: oklch(86.92% 0.027 102.28);
+  --color-dark-khaki-300: oklch(80.23% 0.041 102.57);
+  --color-dark-khaki-400: oklch(73.43% 0.055 102.88);
+  --color-dark-khaki-500: oklch(66.58% 0.070 102.35);
+  --color-dark-khaki-600: oklch(56.59% 0.057 103.19);
+  --color-dark-khaki-700: oklch(46.22% 0.045 103.16);
+  --color-dark-khaki-800: oklch(35.23% 0.033 103.09);
+  --color-dark-khaki-900: oklch(23.27% 0.018 102.93);
+  --color-dark-khaki-950: oklch(19.44% 0.014 100.76);
+}

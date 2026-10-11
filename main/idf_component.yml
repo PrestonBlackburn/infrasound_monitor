@@ -1,0 +1,10 @@
+dependencies:
+  esp_stubs:
+    path: ${IDF_PATH}/examples/protocols/linux_stubs/esp_stubs
+    rules:
+    - if: target in [linux]
+  espressif/cjson: '*'
+  lvgl/lvgl: 9.6.0
+  esp_lcd_touch_stmpe610: ^1.0.0
+  atanisoft/esp_lcd_touch_xpt2046: 1.0.6
+

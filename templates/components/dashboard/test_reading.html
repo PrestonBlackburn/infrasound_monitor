@@ -1,0 +1,100 @@
+<div id="readings" class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
+
+    <div class="col-span-2 rounded-lg border border-taupe-200 bg-white p-4 sm:col-span-3 xl:col-span-2">
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Raw pressure</p>
+        <p class="mt-1 text-4xl font-semibold tabular-nums text-taupe-900">
+            <span data-stat="raw_pressure_mpa">--</span>
+            <span class="text-base font-normal text-taupe-400">mPa</span>
+        </p>
+    </div>
+
+    <div class="rounded-lg border border-taupe-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Uptime</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums text-taupe-900">
+            <span data-stat="uptime_s">--</span>
+        </p>
+    </div>
+
+    <div class="rounded-lg border border-taupe-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Sound level</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums text-taupe-900">
+            <span data-stat="raw_db">--</span>
+            <span class="text-sm font-normal text-taupe-400">dB</span>
+        </p>
+    </div>
+
+    <div class="rounded-lg border border-taupe-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Heap</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums text-taupe-900">
+            <span data-stat="heap_free">--</span>
+            <span class="text-sm font-normal text-taupe-400">KB free</span>
+        </p>
+    </div>
+
+    <div class="rounded-lg border border-taupe-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Link</p>
+        <p class="mt-1 text-2xl font-semibold text-taupe-900">
+            <span class="inline-flex items-center gap-2">
+                <span data-dot="wifi_up" class="h-2.5 w-2.5 rounded-full bg-taupe-300"></span>
+                <span data-stat="wifi_up">--</span>
+            </span>
+        </p>
+    </div>
+
+    <div class="rounded-lg border border-taupe-200 bg-white p-4">
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Temperature</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums text-taupe-900">
+            <span data-stat="temperature_c">--</span>
+            <span class="text-sm font-normal text-taupe-400">&deg;C</span>
+        </p>
+    </div>
+
+</div>
+
+<style>
+    /* Set by App.onStatus below; dims the row when the stream is not up. */
+    body[data-stream="down"] #readings { opacity: 0.55; }
+</style>
+
+<script>
+  (() => {
+    // Nothing in this partial is templated. The shipped HTML has no values in
+    // it, because the build machine has no state to bake in -- every value
+    // arrives at runtime from /api/state or /events. So this fmt map is the
+    // only place numbers get formatted.
+    const cells = {};
+    document.querySelectorAll('[data-stat]').forEach((el) => { cells[el.dataset.stat] = el; });
+
+    const dots = {};
+    document.querySelectorAll('[data-dot]').forEach((el) => { dots[el.dataset.dot] = el; });
+
+    const fmt = {
+      heap_free:        (v) => (v / 1024).toFixed(1),
+      wifi_up:          (v) => (v ? 'Up' : 'Down'),
+      raw_pressure_mpa: (v) => v.toFixed(2),
+      raw_db:           (v) => v.toFixed(1),
+      temperature_c:    (v) => v.toFixed(1),
+      uptime_s:         (v) => {
+        const h = Math.floor(v / 3600);
+        const m = Math.floor((v % 3600) / 60);
+        return `${h}:${String(m).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+      },
+    };
+
+    App.onFrame((frame) => {
+      for (const [field, el] of Object.entries(cells)) {
+        if (frame[field] === undefined) continue;
+        el.textContent = (fmt[field] || String)(frame[field]);
+      }
+
+      const dot = dots.wifi_up;
+      if (dot && frame.wifi_up !== undefined) {
+        dot.classList.toggle('bg-dusty-olive-500', frame.wifi_up);
+        dot.classList.toggle('bg-cinnamon-wood-500', !frame.wifi_up);
+        dot.classList.remove('bg-taupe-300');
+      }
+    });
+
+    App.onStatus((state) => { document.body.dataset.stream = state; });
+  })();
+</script>

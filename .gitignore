@@ -1,0 +1,10 @@
+.venv/
+build/
+__pycache__/**
+**/__pycache__/**
+.cahce/**
+sdkconfig
+sdkconfig.old
+sdkconfig.secrets
+package-lock.json
+node_modules/**
