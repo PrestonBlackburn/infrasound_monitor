@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include "pressure_sensor.h"
+#include "display.h"
 #include "state.h"
 
 void app_main(void)
@@ -13,9 +14,8 @@ void app_main(void)
 
     // setup the I2C comms and tasks for the SDP801 Sensor
     // Create the read (from sensor) and process (shared state) tasks
-    sensor_start();
+    ESP_ERROR_CHECK(sensor_start());
+    ESP_ERROR_CHECK(display_start());
 
     sensor_set_verbose(true);  //override logging setting
-
-
 }
