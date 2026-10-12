@@ -1,5 +1,5 @@
 
-#include "raw_ring.h"
+#include "raw_ring_buffer.h"
 
 static inline uint32_t count_locked(const measurement_ring_buffer_t *r) {
     return r->head - r->tail; // free counters

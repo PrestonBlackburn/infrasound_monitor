@@ -1,4 +1,4 @@
-set(requires esp-tls nvs_flash esp_netif esp_http_server web_assets)
+set(requires esp-tls nvs_flash esp_netif esp_http_server)
 idf_build_get_property(target IDF_TARGET)
 
 # setup for sensor only

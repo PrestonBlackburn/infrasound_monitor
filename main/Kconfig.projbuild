@@ -18,3 +18,14 @@ menu "My WiFi Config"
         string "WiFi Password"
         default "changeme"
 endmenu
+
+menu "Infrasound Sensor"
+    config INFRASOUND_SENSOR_VERBOSE
+        bool "Verbose sensor logging (1 Hz heartbeat)"
+        default n
+        help
+            Emit a once-per-second heartbeat with sample counts, latest
+            pressure/dB/temp, ring occupancy, dropped samples, and read
+            error counters. Also toggleable at runtime via
+            sensor_set_verbose().
+endmenu

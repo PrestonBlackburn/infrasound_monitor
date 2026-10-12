@@ -1,6 +1,7 @@
 // state.c
 #include <string.h>
 #include <sys/param.h>
+#include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "state.h"
 

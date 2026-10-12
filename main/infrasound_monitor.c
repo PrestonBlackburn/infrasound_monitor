@@ -1,3 +1,5 @@
+// infrasound_monitor.c
+
 #include <stdio.h>
 #include "pressure_sensor.h"
 #include "state.h"
@@ -13,5 +15,7 @@ void app_main(void)
     // Create the read (from sensor) and process (shared state) tasks
     sensor_start();
 
-    
+    sensor_set_verbose(true);  //override logging setting
+
+
 }

@@ -1,3 +1,5 @@
+// pressure_sensor.c 
+
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -41,11 +43,26 @@ _Static_assert(SAMPLE_PERIOD_TICKS >= 1, "SAMPLE_PERIOD_MS is shorter than one F
 #define RAW_RING_LEN         512    // power of 2, about 100 samples/sec (5 sec window)
 #define BATCH_MAX            64     // samples drained per pass (~10 expected)
 
+// enable/disable 1 Hz logging
+static volatile bool s_verbose  = 
+#if CONFIG_INFRASOUND_SENSOR_VERBOSE
+    true;
+#else
+    false;
+#endif
 
+static volatile uint32_t s_reads_ok, s_i2c_errs, s_crc_errs;
+
+// init buffer
 static i2c_master_dev_handle_t s_dev;
 static measurement_ring_buffer_t s_ring;
 static raw_sample_t s_ring_storage[RAW_RING_LEN];
 
+
+void sensor_set_verbose(bool on) {
+    s_verbose = on;
+    ESP_LOGI(TAG, "verbose logging %s", on ? "on" : "off");
+}
 
 static inline uint32_t now_ms(void) {
     return (uint32_t)(esp_timer_get_time() / 1000);
@@ -113,12 +130,12 @@ static esp_err_t sensor_hw_init(void) {
 
 // read sensor task, i2c -> measurement ring buffer
 void sensor_read_task(void *arg) {
+
     (void)arg;
     // read i2c data, apply scaling factor, write to ring buffer
     // 3 bytes Diff pressure (MSB, LSB, CRC), 3 bytes Temp (MSB, LSB, CRC)
     // limit logging here to debug and errors
     uint8_t buf[9];  // dp(2)+crc, temp(2)+crc, scale(2)+crc
-    uint32_t i2c_errs = 0, crc_errs = 0;
     TickType_t last_wake = xTaskGetTickCount();
 
     for (;;) {
@@ -132,14 +149,14 @@ void sensor_read_task(void *arg) {
         uint32_t t_ms = now_ms();         // stamp immediately after the transfer
 
         if (ret != ESP_OK) {
-            if ((i2c_errs++ & 0x3F) == 0) {
-                ESP_LOGE(TAG, "read failed: %s (%" PRIu32 " total)", esp_err_to_name(ret), i2c_errs);
+            if ((s_i2c_errs++ & 0x3F) == 0) {
+                ESP_LOGE(TAG, "read failed: %s (%" PRIu32 " total)", esp_err_to_name(ret), s_i2c_errs);
             }
             continue;
         }
         if (sensirion_crc8(&buf[0], 2) != buf[2] || sensirion_crc8(&buf[3], 2) != buf[5]) {
-            if ((crc_errs++ & 0x3F) == 0) {
-                ESP_LOGE(TAG, "CRC mismatch (%" PRIu32 " total)", crc_errs);
+            if ((s_crc_errs++ & 0x3F) == 0) {
+                ESP_LOGE(TAG, "CRC mismatch (%" PRIu32 " total)", s_crc_errs);
             }
             continue;
         }
@@ -150,14 +167,15 @@ void sensor_read_task(void *arg) {
             .t_ms = t_ms,
         };
         measurement_ring_push(&s_ring, &s);
+        s_reads_ok++;
     }
 }
 
 // process task, measurement ring buffer -> state
 typedef struct {
     // current stats window
-    int64_t p_sum, p_sumsq, t_sum;
-    int32_t n, start_ms;
+    uint64_t p_sum, p_sumsq, t_sum;
+    uint32_t n, start_ms;
     // result between window close
     bool have_window;
     float db, temp_c;
@@ -191,7 +209,7 @@ static void handle_batch(proc_t *c, const raw_sample_t *batch, uint32_t n) {
     for (uint32_t i = 0; i < n; i++) {
         const raw_sample_t *r = &batch[i];
 
-        int32_t mpa = counts_to_mpa(r->p);
+        int32_t mpa = counts_to_mpa(r->p_raw);
         pub[i].mpa = mpa;
         pub[i].t_ms = r->t_ms;
 
@@ -200,13 +218,13 @@ static void handle_batch(proc_t *c, const raw_sample_t *batch, uint32_t n) {
         if (c->n == 0) {
             c->start_ms = r->t_ms;
         }
-        c->p_sum   += r->p;
-        c->p_sumsq += (int32_t)r->p * r->p;
-        c->t_sum   += r->t;
+        c->p_sum   += r->p_raw;
+        c->p_sumsq += (int32_t)r->p_raw * r->p_raw;
+        c->t_sum   += r->t_raw;
         c-> n++;
         if(!c->have_window) {
             // show live temp if no window
-            c->temp_c = (float)r->t / TEMP_SCALE_FACTOR;
+            c->temp_c = (float)r->t_raw / TEMP_SCALE_FACTOR;
         }
         if ((uint32_t)(r->t_ms - c->start_ms) >= STATS_WINDOW_MS) {
             window_close(c);
@@ -231,26 +249,46 @@ void sensor_process_task(void *pvParameters) {
     (void)pvParameters;
     static raw_sample_t batch[BATCH_MAX];
     static proc_t ctx;
-    uint32_t drpped_seen = 0;
     TickType_t last_wake = xTaskGetTickCount();
 
     for (;;) {
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(PROCESS_PERIOD_MS));
-
         uint32_t n;
         // loop if behind
         do {
             n = measurement_ring_drain(&s_ring, batch, BATCH_MAX);
             handle_batch(&ctx, batch, n);
         } while (n == BATCH_MAX);
-
-        uint32_t dropped = measurement_ring_dropped(&s_ring);
-        if (dropped != drpped_seen) {
-            ESP_LOGW(TAG, "raw ring overflow: %" PRIu32 " samples lost", dropped - dropped_seen);
-            dropped_seen = dropped;
-        }
     }
 }
+
+static void sensor_log_task(void *arg)
+{
+    (void)arg;
+    uint32_t reads_seen = 0, dropped_seen = 0;
+    TickType_t last_wake = xTaskGetTickCount();
+
+    for (;;) {
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(1000));
+
+        uint32_t dropped = measurement_ring_dropped(&s_ring);
+        if (dropped != dropped_seen) {
+            ESP_LOGW(TAG, "raw ring overflow: %" PRIu32 " samples lost", dropped - dropped_seen);
+        }
+        if (s_verbose) {
+            state_t st;
+            state_get(&st, NULL, pdMS_TO_TICKS(10));
+            uint32_t reads = s_reads_ok;
+            ESP_LOGI(TAG, "reads=%" PRIu32 " (+%" PRIu32 ") ring=%" PRIu32
+                          " dropped=%" PRIu32 " mpa=%.2f db=%.1f temp=%.1f",
+                     reads, reads - reads_seen, measurement_ring_count(&s_ring), dropped,
+                     st.raw_pressure_mpa, st.raw_db, st.temperature_c);
+            reads_seen = reads;
+        }
+        dropped_seen = dropped;
+    }
+}
+
 
 // public entry point
 esp_err_t sensor_start(void) {
@@ -263,5 +301,7 @@ esp_err_t sensor_start(void) {
                         ESP_ERR_NO_MEM, TAG, "read task");
     ESP_RETURN_ON_FALSE(xTaskCreate(sensor_process_task, "SENSOR_PROC", 4096, NULL, 4, NULL) == pdPASS,
                         ESP_ERR_NO_MEM, TAG, "process task");
+    ESP_RETURN_ON_FALSE(xTaskCreate(sensor_log_task, "SENSOR_LOG", 4096, NULL, 1, NULL) == pdPASS,
+                    ESP_ERR_NO_MEM, TAG, "log task");
     return ESP_OK;
 }

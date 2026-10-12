@@ -7,7 +7,7 @@ if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.secrets")
     list(APPEND SDKCONFIG_DEFAULTS "sdkconfig.secrets")
 endif()
 
-list(APPEND EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/main/web_assets")
+# list(APPEND EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/main/web_assets")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(MINIMAL_BUILD ON)
 project(infrasound_monitor)
