@@ -6,7 +6,6 @@ typedef struct {
     float    raw_pressure_mpa;
     float    raw_db;
     float    temperature_c;
-    float    samples[8];
     bool     wifi_up;
 } state_t;
 

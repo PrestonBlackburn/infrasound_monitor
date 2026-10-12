@@ -1,3 +1,5 @@
+# // To Refactor //
+
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     set(WEB_TEMPLATES  ${PROJECT_DIR}/templates)
     set(WEB_STATIC     ${PROJECT_DIR}/static)
