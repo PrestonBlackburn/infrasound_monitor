@@ -174,7 +174,7 @@ void sensor_read_task(void *arg) {
 // process task, measurement ring buffer -> state
 typedef struct {
     // current stats window
-    uint64_t p_sum, p_sumsq, t_sum;
+    int64_t p_sum, p_sumsq, t_sum;
     uint32_t n, start_ms;
     // result between window close
     bool have_window;
