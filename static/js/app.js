@@ -33,7 +33,17 @@ const App = (() => {
     // the state. Note the mock simulates outages in wifi_up; it does not drop
     // the socket, so this only fires on a genuine disconnect.
     es.onopen = () => notify(statuses, 'open');
-    es.onerror = () => notify(statuses, 'down');
+    es.onerror = () => {
+      notify(statuses, 'down');
+      // EventSource retries by itself after a network error, but gives up for
+      // good if the server answers with an HTTP error (the device sends 503
+      // when its stream slots are full). Close and retry by hand in that case.
+      if (es && es.readyState === EventSource.CLOSED) {
+        es.close();
+        es = null;
+        setTimeout(connect, 1500);
+      }
+    };
   }
 
   // The shipped HTML has no values baked into it -- the build machine has no

@@ -1,0 +1,153 @@
+<div class="rounded-lg border border-taupe-200 bg-white p-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-sm font-semibold text-taupe-900">Band levels</h2>
+        <p class="text-xs text-taupe-400">dB re 20 &micro;Pa &middot; octave bands &middot; 512-pt FFT</p>
+    </div>
+    <div id="bands-container" class="mt-2 w-full"></div>
+</div>
+
+<script>
+(() => {
+  const FS       = 100;      // device sample rate, Hz
+  const N        = 512;      // FFT size (power of two): 5.12 s window, 0.195 Hz bins
+  const HOP_MS   = 500;      // recompute interval
+  const HISTORY_S = 60;      // seconds of band history to plot
+  const REF_PA   = 20e-6;
+
+  // Octave-wide bands centred on these frequencies. Edit freely.
+  const BANDS = [1, 5, 10, 20].map((c) => {
+    const lo = c / Math.SQRT2, hi = c * Math.SQRT2;
+    return {
+      label: c + ' Hz',
+      kLo: Math.max(1, Math.ceil(lo * N / FS)),               // skip DC bin
+      kHi: Math.min(N / 2 - 1, Math.ceil(hi * N / FS) - 1),
+    };
+  });
+  const COLORS = ['#797A52', '#B0643C', '#4F7CAC', '#8C5E8C'];
+
+  // Hann window and its power sum, for scaling
+  const win = new Float64Array(N);
+  let wsum2 = 0;
+  for (let i = 0; i < N; i++) {
+    win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+    wsum2 += win[i] * win[i];
+  }
+
+  // In-place iterative radix-2 FFT
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        [re[i], re[j]] = [re[j], re[i]];
+        [im[i], im[j]] = [im[j], im[i]];
+      }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len;
+      const wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const a = i + k, b = a + len / 2;
+          const tr = re[b] * cr - im[b] * ci;
+          const ti = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - tr;  im[b] = im[a] - ti;
+          re[a] += tr;         im[a] += ti;
+          const ncr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr;
+          cr = ncr;
+        }
+      }
+    }
+  }
+
+  const re = new Float64Array(N), im = new Float64Array(N);
+
+  // samples: last N values in mPa -> dB per band (unweighted, re 20 uPa)
+  function bandLevels(samples) {
+    let mean = 0;
+    for (let i = 0; i < N; i++) mean += samples[i];
+    mean /= N;
+    for (let i = 0; i < N; i++) { re[i] = (samples[i] - mean) * win[i]; im[i] = 0; }
+    fft(re, im);
+
+    return BANDS.map((b) => {
+      let p = 0;
+      for (let k = b.kLo; k <= b.kHi; k++) p += re[k] * re[k] + im[k] * im[k];
+      const msMpa2 = 2 * p / (N * wsum2);          // one-sided mean-square, mPa^2
+      const rmsPa  = Math.sqrt(msMpa2) / 1000;
+      return rmsPa > REF_PA ? 20 * Math.log10(rmsPa / REF_PA) : 0;   // same clamp as the device
+    });
+  }
+
+  // ---- state ---------------------------------------------------------------
+  const buf = [];                        // newest N raw samples
+  const xs = [];
+  const ys = BANDS.map(() => []);
+  let startMs = performance.now();
+  let lastRun = 0;
+  let chart = null;
+  const target = document.getElementById('bands-container');
+
+  const opts = {
+    width: target.clientWidth || 600,
+    height: 240,
+    scales: {
+      x: { time: false, range: (u, min, max) => [max - HISTORY_S, max] },
+      y: { range: (u, min, max) => [Math.max(0, min - 5), max + 5] },
+    },
+    axes: [
+      { space: 90, incrs: [5, 10, 15, 30], values: (u, s) => s.map((v) => v + 's') },
+      { label: 'dB' },
+    ],
+    series: [
+      {},
+      ...BANDS.map((b, i) => ({
+        label: b.label, stroke: COLORS[i % COLORS.length], width: 1.5,
+        points: { show: false },
+      })),
+    ],
+  };
+
+  window.addEventListener('resize', () => {
+    if (chart) chart.setSize({ width: target.clientWidth, height: 240 });
+  });
+
+  App.onFrame((frame) => {
+    const w = frame.window;
+    if (!w || !w.value) return;
+
+    if (w.reset) {                        // new connection: start fresh
+      buf.length = 0;
+      xs.length = 0;
+      ys.forEach((y) => { y.length = 0; });
+      startMs = performance.now();
+    }
+    if (w.dropped > 0) buf.length = 0;    // gap in the data: don't FFT across it
+
+    for (let i = 0; i < w.value.length; i++) buf.push(w.value[i]);
+    if (buf.length > N) buf.splice(0, buf.length - N);
+
+    const now = performance.now();
+    if (buf.length < N || now - lastRun < HOP_MS) return;
+    lastRun = now;
+
+    const levels = bandLevels(buf);
+    const t = (now - startMs) / 1000;     // plotted at the window's end time
+    xs.push(t);
+    levels.forEach((db, i) => ys[i].push(db));
+
+    while (xs.length && xs[0] < t - HISTORY_S) {
+      xs.shift();
+      ys.forEach((y) => y.shift());
+    }
+
+    const data = [xs, ...ys];
+    if (chart === null) chart = new uPlot(opts, data, target);
+    else chart.setData(data);
+  });
+})();
+</script>

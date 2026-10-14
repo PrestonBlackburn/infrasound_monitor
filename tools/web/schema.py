@@ -46,7 +46,7 @@ PY_TYPES = {
     "float":    float, "double": float,
 }
 
-MOCK_ONLY_KEYS = frozenset({"seq", "t", "value", "window"})
+MOCK_ONLY_KEYS = frozenset({"seq", "now_ms", "window"})
 
 class FieldSpec(NamedTuple):
     name: str

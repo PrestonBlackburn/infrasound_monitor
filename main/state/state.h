@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "freertos/FreeRTOS.h"
 #include "state_struct.h"
 

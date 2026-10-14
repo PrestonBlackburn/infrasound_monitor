@@ -20,8 +20,9 @@ from mock_data import MOCK
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = ROOT / "templates"
-PAGES = {"/": "pages/live_demo.html"}   # URL path -> template
+PAGES = {"/": "pages/dashboard.html"}   # URL path -> template
 PORT = 8000
+MAX_SAMPLES = 64
 
 class PreviewHandler(SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -44,7 +45,7 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         if path in PAGES:
             return self._page(path)
         if path == "/api/state":
-            return self._json(MOCK.snapshot())
+            return self._json(MOCK.event())
         if path == "/events":
             return self._events()
         if path.startswith("/static/"):
@@ -82,23 +83,29 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
 
+        cursor = MOCK.cursor_latest(0)
         seq = MOCK.seq
         try:
-            # Frame immediately from current state so the chart paints without
-            # waiting a full tick, then follow the tick clock.
-            self._chunk(self._frame(MOCK.event()))
+            self._chunk(self._frame(MOCK.event(reset=True)))
             while True:
                 nxt = MOCK.wait_tick(seq)
                 if nxt is None:
-                    self._chunk(b": keepalive\n\n")
+                    self._chunk(self._frame(MOCK.event()))   # idle: state-only frame
                     continue
                 seq = nxt
-                self._chunk(self._frame(MOCK.event()))
+                while True:                                  # drain in frame-sized chunks
+                    cursor, samples, dropped = MOCK.read_since(cursor, MAX_SAMPLES)
+                    if samples or dropped:
+                        self._chunk(self._frame(MOCK.event(samples, dropped)))
+                    if len(samples) < MAX_SAMPLES:
+                        break
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass    # client navigated away; normal
         finally:
-            self._chunk(b"")    # terminating zero-length chunk
-
+            try:
+                self._chunk(b"")    # terminating zero-length chunk
+            except OSError:
+                pass 
     @staticmethod
     def _frame(payload: dict) -> bytes:
         return f"data: {json.dumps(payload)}\n\n".encode("utf-8")

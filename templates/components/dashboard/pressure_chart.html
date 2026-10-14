@@ -1,0 +1,91 @@
+<div class="rounded-lg border border-taupe-200 bg-white p-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-sm font-semibold text-taupe-900">Pressure</h2>
+        <p class="text-xs tabular-nums text-taupe-400">
+            <span class="mr-1">mPa</span>
+            <span data-window-count>--</span> points
+            <span class="mx-1">&middot;</span>
+            <span data-window-span>--</span>s window
+        </p>
+    </div>
+    <div id="chart-container" class="mt-2 w-full"></div>
+</div>
+
+<script>
+  (() => {
+    const WINDOW_S = 10;           // seconds of history kept in the browser
+    const xs = [];
+    const ys = [];
+    let anchor = null;             // maps device ms-since-boot onto browser wall-clock seconds
+
+    // (a - b) | 0 is wrap-safe across the device's 49-day millisecond rollover
+    const toX = (devMs) => ((devMs - anchor.dev) | 0) / 1000;
+    const target  = document.getElementById('chart-container');
+    const countEl = document.querySelector('[data-window-count]');
+    const spanEl  = document.querySelector('[data-window-span]');
+    let chart = null;
+
+    const opts = {
+      width:  target.clientWidth || 600,
+      height: 260,
+      legend: { show: false }, 
+      scales: { x: 
+        { time: false,
+          range: (u, min, max) => [max-WINDOW_S, max],
+         },
+      },       // x is plain seconds; no date formatting
+      axes: [
+        { 
+          space: 90,
+          incrs: [1,2,5,10],
+          values: (u, splits) => splits.map((v) => v + 's'),
+        },
+        { label: 'mPa' },
+      ],
+      series: [
+        {},
+        { label: 'mPa', stroke: '#797A52', width: 1, points: { show: false } },
+      ],
+    };
+
+    window.addEventListener('resize', () => {
+      if (chart) chart.setSize({ width: target.clientWidth, height: 260 });
+    });
+
+    const off = App.onFrame((frame) => {
+      const w = frame.window;
+      if (!w) return;                                  // state-only frame
+
+      if (w.reset || anchor === null) {                // new connection: start fresh
+        xs.length = 0;
+        ys.length = 0;
+        anchor = { dev: frame.now_ms, wall: Date.now() / 1000 };
+      }
+      if (!w.value.length) return;
+
+      for (let i = 0; i < w.value.length; i++) {
+        xs.push(toX(w.t0 + w.dt[i]));
+        ys.push(w.value[i]);
+      }
+
+      // drop points older than the window
+      const cutoff = xs[xs.length - 1] - WINDOW_S;
+      let k = 0;
+      while (k < xs.length && xs[k] < cutoff) k++;
+      if (k > 0) {
+        xs.splice(0, k);
+        ys.splice(0, k);
+      }
+
+      const data = [xs, ys];
+      if (chart === null) {
+        chart = new uPlot(opts, data, target);
+      } else {
+        chart.setData(data);
+      }
+
+      countEl.textContent = xs.length;
+      spanEl.textContent = Math.round(xs[xs.length - 1] - xs[0]);
+    });
+})();
+</script>

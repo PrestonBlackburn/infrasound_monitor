@@ -3,12 +3,12 @@
 #include "web_assets.h"
 
 #define DECLARE_ASSET(name)                                             \
-    extern const uint8_t name##_start[] asm("_binary_" #name "_start");  \
+    extern const uint8_t name##_start[] asm("_binary_" #name "_start"); \
     extern const uint8_t name##_end[]   asm("_binary_" #name "_end");
 
 // Ideally we wouldn't need to hardcode the assets
 // There probably won't be that many more we need for now though
-DECLARE_ASSET(live_demo_html_gz)
+DECLARE_ASSET(dashboard_html_gz)
 DECLARE_ASSET(build_css_gz)
 DECLARE_ASSET(uplot_css_gz)
 DECLARE_ASSET(app_js_gz)
@@ -25,7 +25,7 @@ static const struct {
     const uint8_t  *start;
     const uint8_t  *end;
 } table[] = {
-    ASSET("/", "text/html", live_demo_html_gz),
+    ASSET("/", "text/html", dashboard_html_gz),
     ASSET("/static/css/build.css", "text/css", build_css_gz),
     ASSET("/static/css/uplot.css", "text/css", uplot_css_gz),
     ASSET("/static/js/app.js", "application/javascript", app_js_gz),

@@ -9,7 +9,7 @@ Create .venv or activate if already present:
 ```bash
 uv venv
 source .venv/bin/activate
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 This project uses the esp-idf for development. Activate the toolkit with:
@@ -35,3 +35,6 @@ Bump up FREERTOS HZ for a faster sample rate:
 ```txt
 CONFIG_FREERTOS_HZ=1000
 ```
+
+Update flash size (need >1MB)
+menuconfig -> partition table -> partition table -> "single factory app (large), no OTA

@@ -1,9 +1,12 @@
 <div id="readings" class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
 
     <div class="col-span-2 rounded-lg border border-taupe-200 bg-white p-4 sm:col-span-3 xl:col-span-2">
-        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">Raw pressure</p>
+        <p class="text-xs font-medium uppercase tracking-wider text-taupe-500">
+            Peak pressure
+            <span class="normal-case tracking-normal text-taupe-400">&middot; since page load</span>
+        </p>
         <p class="mt-1 text-4xl font-semibold tabular-nums text-taupe-900">
-            <span data-stat="raw_pressure_mpa">--</span>
+            <span data-peak>--</span>
             <span class="text-base font-normal text-taupe-400">mPa</span>
         </p>
     </div>
@@ -81,7 +84,21 @@
       },
     };
 
+    // get peak pressure over webpage lifetime
+    const peakEl = document.querySelector('[data-peak]');
+    let peak = null;                      // largest-magnitude sample, sign kept
+
+
     App.onFrame((frame) => {
+        const w = frame.window;
+        if (w && w.value && w.value.length) {
+            for (const v of w.value) {
+            if (peak === null || Math.abs(v) > Math.abs(peak)) peak = v;
+            }
+            peakEl.textContent = peak.toFixed(0);
+        }
+
+
       for (const [field, el] of Object.entries(cells)) {
         if (frame[field] === undefined) continue;
         el.textContent = (fmt[field] || String)(frame[field]);
