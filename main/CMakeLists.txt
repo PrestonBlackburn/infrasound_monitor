@@ -46,6 +46,7 @@ idf_component_register(
         "local_display/display.c"
         "local_display/ui_chart.c"
         "local_display/ui_metrics.c"
+        "local_display/ui_access_point.c"
         "web/wifi.c"
         "web/webserver.c"
         "web/web_frame.c"

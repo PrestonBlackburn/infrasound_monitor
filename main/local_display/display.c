@@ -18,6 +18,8 @@
 #include "display.h"
 #include "ui_chart.h"
 #include "ui_metrics.h"
+#include "ui_access_point.h"
+#include "wifi.h"
 
 static const char *TAG = "display";
 
@@ -46,7 +48,17 @@ static const char *TAG = "display";
 #define LVGL_TASK_STACK_SIZE       (16 * 1024)
 #define LVGL_TASK_PRIORITY         2
 
-#define NUM_PAGES                  2
+
+// Handle showing pages
+#define PAGE_CHART                 0
+#define PAGE_METRICS               1
+#define PAGE_AP                    2
+#define NUM_PAGES                  3
+
+// decide if AP page should be shown
+static bool page_available(int idx) {
+    return idx != PAGE_AP || wifi_ap_info(NULL, 0, NULL, 0);
+}
 
 // LVGL is not thread-safe. The UI timers run inside lv_timer_handler() with
 // this lock already held, so the ui_* modules never need to touch it.
@@ -92,6 +104,12 @@ static void button_poll_cb(lv_timer_t *timer)
 {
     static int stable = 1;          // 1 = released (pull-up), 0 = pressed
     static int changed_count = 0;
+    static bool ap_auto_shown;
+    if (!ap_auto_shown && wifi_ap_info(NULL, 0, NULL, 0)) {
+        ap_auto_shown = true;
+        s_page_idx = PAGE_AP;
+        lv_screen_load(s_pages[PAGE_AP]);
+    }
 
     int level = gpio_get_level(PAGE_BUTTON_GPIO);
     if (level == stable) {
@@ -105,7 +123,9 @@ static void button_poll_cb(lv_timer_t *timer)
     changed_count = 0;
 
     if (stable == 0) {              // act on press, not release
-        s_page_idx = (s_page_idx + 1) % NUM_PAGES;
+        do {
+            s_page_idx = (s_page_idx + 1) % NUM_PAGES;
+        } while (!page_available(s_page_idx));
         lv_screen_load(s_pages[s_page_idx]);
     }
 }
@@ -186,8 +206,9 @@ esp_err_t display_start(void)
     ESP_RETURN_ON_ERROR(gpio_config(&btn_cfg), TAG, "button gpio");
 
     _lock_acquire(&s_lvgl_lock);
-    s_pages[0] = ui_chart_create();
-    s_pages[1] = ui_metrics_create();
+    s_pages[PAGE_CHART] = ui_chart_create();
+    s_pages[PAGE_METRICS] = ui_metrics_create();
+    s_pages[PAGE_AP] = ui_ap_page_create();
     lv_screen_load(s_pages[0]);
     lv_timer_create(button_poll_cb, BUTTON_POLL_MS, NULL);
     _lock_release(&s_lvgl_lock);

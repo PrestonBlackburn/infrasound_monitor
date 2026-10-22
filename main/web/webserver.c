@@ -258,10 +258,6 @@ static void on_disconnected(void *arg, esp_event_base_t base, int32_t id, void *
 
 esp_err_t webserver_start(void)
 {
-    ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_got_ip, NULL),
-                        TAG, "register got-ip");
-    ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, on_disconnected, NULL),
-                        TAG, "register disconnect");
     return server_start();
 }
 
