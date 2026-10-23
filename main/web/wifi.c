@@ -10,7 +10,9 @@
 #include "esp_check.h"
 #include "state.h"
 #include "nvs.h"
+#include "mdns.h"
 
+#define MDNS_HOSTNAME "infrasound"
 #define NVS_NS "net"
 
 static const char *TAG = "wifi";
@@ -40,6 +42,19 @@ bool wifi_ap_info(char *ssid, size_t ssid_sz, char *pass, size_t pass_sz) {
     if (ssid) ap_ssid(ssid, ssid_sz);
     if (pass) strlcpy(pass, AP_PASSWORD, pass_sz);
     return true;
+}
+
+// mDNS for hostname
+static void start_mdns(void) {
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "mDNS init failed (%s), use the IP address mode instead", esp_err_to_name(err));
+        return;
+    }
+    mdns_hostname_set(MDNS_HOSTNAME);
+    mdns_instance_name_set("Infrasound Monitor");
+    mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+    ESP_LOGI(TAG, "mDNS: http://%s.local", MDNS_HOSTNAME);
 }
 
 // check nvs for creds
@@ -169,6 +184,7 @@ esp_err_t wifi_init_sta(void)
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
+    start_mdns();
 
     // Default is the access point: only try a station network if we have credentials for one.
     char ssid[33] = {0};
