@@ -10,6 +10,7 @@
 #include "display.h"
 #include "state.h"
 #include "webserver.h"
+#include "battery.h"
 
 void app_main(void)
 {
@@ -23,6 +24,7 @@ void app_main(void)
 
     // setup the I2C comms and tasks for the SDP801 Sensor
     // Create the read (from sensor) and process (shared state) tasks
+    ESP_ERROR_CHECK(battery_start());
     ESP_ERROR_CHECK(sensor_start());
     ESP_ERROR_CHECK(display_start());
     ESP_ERROR_CHECK(webserver_start());

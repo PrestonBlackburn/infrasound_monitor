@@ -47,10 +47,12 @@ idf_component_register(
         "local_display/ui_chart.c"
         "local_display/ui_metrics.c"
         "local_display/ui_access_point.c"
+        "local_display/ui_battery.c"
         "web/wifi.c"
         "web/webserver.c"
         "web/web_frame.c"
         "web/web_assets.c"
+        "battery/battery.c"
     PRIV_REQUIRES 
         esp_driver_i2c 
         esp_timer 
@@ -64,6 +66,7 @@ idf_component_register(
         esp_http_server
         esp_eth
         nvs_flash
+        esp_adc
         EMBED_FILES ${WEB_GZ}
     INCLUDE_DIRS 
         "." 
@@ -71,4 +74,5 @@ idf_component_register(
         "state" 
         "local_display"
         "web"
+        "battery"
 )

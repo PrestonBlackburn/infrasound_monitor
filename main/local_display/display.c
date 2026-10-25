@@ -19,6 +19,7 @@
 #include "ui_chart.h"
 #include "ui_metrics.h"
 #include "ui_access_point.h"
+#include "ui_battery.h"
 #include "wifi.h"
 
 static const char *TAG = "display";
@@ -209,6 +210,7 @@ esp_err_t display_start(void)
     s_pages[PAGE_CHART] = ui_chart_create();
     s_pages[PAGE_METRICS] = ui_metrics_create();
     s_pages[PAGE_AP] = ui_ap_page_create();
+    ui_battery_create();
     lv_screen_load(s_pages[0]);
     lv_timer_create(button_poll_cb, BUTTON_POLL_MS, NULL);
     _lock_release(&s_lvgl_lock);
