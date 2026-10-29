@@ -16,6 +16,8 @@ DECLARE_ASSET(htmx_min_js_gz)
 DECLARE_ASSET(uplot_js_gz)
 DECLARE_ASSET(temp_logo_svg_gz)
 DECLARE_ASSET(sse_min_js_gz)
+DECLARE_ASSET(recorder_js_gz)
+
 
 #define ASSET(uri, mime, name) { uri, mime, name##_start, name##_end }
 
@@ -29,6 +31,7 @@ static const struct {
     ASSET("/static/css/build.css", "text/css", build_css_gz),
     ASSET("/static/css/uplot.css", "text/css", uplot_css_gz),
     ASSET("/static/js/app.js", "application/javascript", app_js_gz),
+    ASSET("/static/js/recorder.js", "application/javascript", recorder_js_gz),
     ASSET("/static/js/htmx.min.js", "application/javascript", htmx_min_js_gz),
     ASSET("/static/js/uplot.js", "application/javascript", uplot_js_gz),
     ASSET("/static/js/sse.min.js", "application/javascript", sse_min_js_gz),

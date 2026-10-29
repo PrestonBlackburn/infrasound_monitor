@@ -1,31 +1,56 @@
 <div class="rounded-lg border border-taupe-200 bg-white p-4">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 class="text-sm font-semibold text-taupe-900">Band levels</h2>
-        <p class="text-xs text-taupe-400">dB re 20 &micro;Pa &middot; octave bands &middot; 512-pt FFT</p>
+        <h2 class="text-sm font-semibold text-taupe-900">Spectrogram</h2>
+        <p class="text-xs text-taupe-400">dB re 20 &micro;Pa &middot; 0&ndash;50 Hz &middot; 128-pt FFT &middot; 75% overlap</p>
     </div>
-    <div id="bands-container" class="mt-2 w-full"></div>
+    <div id="spectro-container" class="mt-2 w-full">
+        <canvas id="spectro-canvas" class="block w-full" style="height:280px"></canvas>
+    </div>
 </div>
 
 <script>
 (() => {
-  const FS       = 100;      // device sample rate, Hz
-  const N        = 512;      // FFT size (power of two): 5.12 s window, 0.195 Hz bins
-  const HOP_MS   = 500;      // recompute interval
-  const HISTORY_S = 60;      // seconds of band history to plot
-  const REF_PA   = 20e-6;
+  const FS        = 100;     // device sample rate, Hz
+  const N         = 128;     // FFT size: 1.28 s window, 0.78 Hz bins
+  const HOP       = 32;      // samples between spectra (75% overlap -> 0.32 s)
+  const HISTORY_S = 60;      // seconds of history shown
+  const REF_PA    = 20e-6;
+  const DB_MIN    = 55;      // fixed colour scale, dB re 20 uPa (per bin)
+  const DB_MAX    = 100;
+  const CMAP      = 'fire';  // 'fire' or 'inferno'
+  const HEIGHT    = 280;     // CSS px; keep in sync with the canvas style above
 
-  // Octave-wide bands centred on these frequencies. Edit freely.
-  const BANDS = [1, 5, 10, 20].map((c) => {
-    const lo = c / Math.SQRT2, hi = c * Math.SQRT2;
-    return {
-      label: c + ' Hz',
-      kLo: Math.max(1, Math.ceil(lo * N / FS)),               // skip DC bin
-      kHi: Math.min(N / 2 - 1, Math.ceil(hi * N / FS) - 1),
-    };
-  });
-  const COLORS = ['#797A52', '#B0643C', '#4F7CAC', '#8C5E8C'];
+  const DF     = FS / N;                          // bin spacing, Hz
+  const K_MAX  = N / 2 - 1;                       // highest bin shown (~49.2 Hz)
+  const ROWS   = K_MAX + 1;                       // bins 0..K_MAX; bin 0 is DC (always floor)
+  const COLS   = Math.ceil(HISTORY_S * FS / HOP); // spectra kept
+  const SPAN_S = COLS * HOP / FS;                 // seconds covered by the full plot
 
-  // Hann window and its power sum, for scaling
+  // ---- colormaps -----------------------------------------------------------
+  // Each is a list of [r,g,b] stops, linearly interpolated to a 256-entry LUT.
+  const FIRE_R = [0,0,1,25,49,73,98,122,146,162,173,184,195,207,217,229,240,252,255,255,255,255,255,255,255,255,255,255,255,255,255,255];
+  const FIRE_G = [0,0,0,0,0,0,0,0,0,0,0,0,0,14,35,57,79,101,117,133,147,161,175,190,205,219,234,248,255,255,255,255];
+  const FIRE_B = [0,61,96,130,165,192,220,227,210,181,151,122,93,64,35,5,0,0,0,0,0,0,0,0,0,0,0,35,98,160,223,255];
+  const STOPS = {
+    fire: FIRE_R.map((r, i) => [r, FIRE_G[i], FIRE_B[i]]),
+    inferno: [[0,0,4],[40,11,84],[101,21,110],[159,42,99],[212,72,66],[245,125,21],[250,193,39],[252,255,164]],
+  };
+
+  function buildLut(stops) {
+    const lut = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const pos = i / 255 * (stops.length - 1);
+      const a = Math.min(Math.floor(pos), stops.length - 2);
+      const f = pos - a;
+      for (let c = 0; c < 3; c++) {
+        lut[i * 3 + c] = Math.round(stops[a][c] * (1 - f) + stops[a + 1][c] * f);
+      }
+    }
+    return lut;
+  }
+  const LUT = buildLut(STOPS[CMAP] || STOPS.fire);
+
+  // ---- FFT -----------------------------------------------------------------
   const win = new Float64Array(N);
   let wsum2 = 0;
   for (let i = 0; i < N; i++) {
@@ -65,89 +90,177 @@
   }
 
   const re = new Float64Array(N), im = new Float64Array(N);
+  const frameBuf = new Float64Array(N);
 
-  // samples: last N values in mPa -> dB per band (unweighted, re 20 uPa)
-  function bandLevels(samples) {
+  // Ring buffer of the newest N raw samples (mPa)
+  const ring = new Float64Array(N);
+  let wpos = 0, filled = 0, sinceHop = 0;
+
+  // One spectrum -> Uint8Array of colour indices (0..255), one per bin.
+  // Same scaling as the old band code, but evaluated per bin.
+  function spectrum() {
+    for (let i = 0; i < N; i++) frameBuf[i] = ring[(wpos + i) % N];   // oldest -> newest
     let mean = 0;
-    for (let i = 0; i < N; i++) mean += samples[i];
+    for (let i = 0; i < N; i++) mean += frameBuf[i];
     mean /= N;
-    for (let i = 0; i < N; i++) { re[i] = (samples[i] - mean) * win[i]; im[i] = 0; }
+    for (let i = 0; i < N; i++) { re[i] = (frameBuf[i] - mean) * win[i]; im[i] = 0; }
     fft(re, im);
 
-    return BANDS.map((b) => {
-      let p = 0;
-      for (let k = b.kLo; k <= b.kHi; k++) p += re[k] * re[k] + im[k] * im[k];
-      const msMpa2 = 2 * p / (N * wsum2);          // one-sided mean-square, mPa^2
+    const out = new Uint8Array(ROWS);                  // bin 0 (DC) stays at 0
+    for (let k = 1; k <= K_MAX; k++) {
+      const p = re[k] * re[k] + im[k] * im[k];
+      const msMpa2 = 2 * p / (N * wsum2);              // one-sided mean-square, mPa^2
       const rmsPa  = Math.sqrt(msMpa2) / 1000;
-      return rmsPa > REF_PA ? 20 * Math.log10(rmsPa / REF_PA) : 0;   // same clamp as the device
-    });
+      const db = rmsPa > 0 ? 20 * Math.log10(rmsPa / REF_PA) : DB_MIN;
+      const t = (db - DB_MIN) / (DB_MAX - DB_MIN);
+      out[k] = Math.round(255 * Math.min(1, Math.max(0, t)));
+    }
+    return out;
   }
 
-  // ---- state ---------------------------------------------------------------
-  const buf = [];                        // newest N raw samples
-  const xs = [];
-  const ys = BANDS.map(() => []);
-  let startMs = performance.now();
-  let lastRun = 0;
-  let chart = null;
-  const target = document.getElementById('bands-container');
+  // ---- history -------------------------------------------------------------
+  const cols = [];    // Uint8Array per spectrum, or null for a data gap
 
-  const opts = {
-    width: target.clientWidth || 600,
-    height: 240,
-    scales: {
-      x: { time: false, range: (u, min, max) => [max - HISTORY_S, max] },
-      y: { range: (u, min, max) => [Math.max(0, min - 5), max + 5] },
-    },
-    axes: [
-      { space: 90, incrs: [5, 10, 15, 30], values: (u, s) => s.map((v) => v + 's') },
-      { label: 'dB' },
-    ],
-    series: [
-      {},
-      ...BANDS.map((b, i) => ({
-        label: b.label, stroke: COLORS[i % COLORS.length], width: 1.5,
-        points: { show: false },
-      })),
-    ],
-  };
+  function pushCol(c) {
+    cols.push(c);
+    if (cols.length > COLS) cols.shift();
+  }
 
-  window.addEventListener('resize', () => {
-    if (chart) chart.setSize({ width: target.clientWidth, height: 240 });
-  });
+  // ---- rendering -----------------------------------------------------------
+  const container = document.getElementById('spectro-container');
+  const canvas = document.getElementById('spectro-canvas');
+  const ctx = canvas.getContext('2d');
 
+  // Offscreen image: 1 px per spectrum x 1 px per bin, scaled up when drawn.
+  const img = document.createElement('canvas');
+  img.width = COLS; img.height = ROWS;
+  const imgCtx = img.getContext('2d');
+  const imgData = imgCtx.createImageData(COLS, ROWS);
+
+  function renderImage() {
+    const d = imgData.data;
+    d.fill(0);                                         // transparent = no data yet
+    const x0 = COLS - cols.length;                     // newest column on the right
+    for (let j = 0; j < cols.length; j++) {
+      const col = cols[j];
+      const x = x0 + j;
+      for (let k = 0; k < ROWS; k++) {
+        const o = ((ROWS - 1 - k) * COLS + x) * 4;     // low frequencies at the bottom
+        if (col === null) {                            // gap in the stream
+          d[o] = d[o + 1] = d[o + 2] = 110; d[o + 3] = 255;
+        } else {
+          const v = col[k] * 3;
+          d[o] = LUT[v]; d[o + 1] = LUT[v + 1]; d[o + 2] = LUT[v + 2]; d[o + 3] = 255;
+        }
+      }
+    }
+    imgCtx.putImageData(imgData, 0, 0);
+  }
+
+  const M = { l: 38, t: 8, r: 58, b: 24 };            // plot margins, CSS px
+  const TEXT = '#78716c', GRID = '#d6d3d1';
+
+  function draw() {
+    const cssW = container.clientWidth || 600;
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(HEIGHT * dpr)) {
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(HEIGHT * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, HEIGHT);
+
+    const px = M.l, py = M.t;
+    const pw = cssW - M.l - M.r, ph = HEIGHT - M.t - M.b;
+    if (pw < 20) return;
+
+    renderImage();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, px, py, pw, ph);
+
+    ctx.strokeStyle = GRID; ctx.lineWidth = 1;
+    ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
+
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillStyle = TEXT;
+
+    // Y axis: Hz. Bin k is centred on k*DF and fills one row.
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let f = 0; f <= 50; f += 10) {
+      const frac = 1 - (f + DF / 2) / (ROWS * DF);
+      const y = Math.round(py + Math.max(0, frac) * ph) + 0.5;
+      ctx.beginPath(); ctx.moveTo(px - 4, y); ctx.lineTo(px, y); ctx.stroke();
+      ctx.fillText(f + '', px - 7, y);
+    }
+    ctx.save();
+    ctx.translate(10, py + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Hz', 0, 0);
+    ctx.restore();
+
+    // X axis: seconds before now
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let s = 0; s <= HISTORY_S; s += 10) {
+      const x = Math.round(px + pw - (s / SPAN_S) * pw) + 0.5;
+      if (x < px) continue;
+      ctx.beginPath(); ctx.moveTo(x, py + ph); ctx.lineTo(x, py + ph + 4); ctx.stroke();
+      ctx.fillText(s === 0 ? 'now' : '-' + s + 's', x, py + ph + 7);
+    }
+
+    // Colour bar
+    const bx = px + pw + 12, bw = 10;
+    for (let y = 0; y < ph; y++) {
+      const t = 1 - y / (ph - 1);
+      const v = Math.round(t * 255) * 3;
+      ctx.fillStyle = 'rgb(' + LUT[v] + ',' + LUT[v + 1] + ',' + LUT[v + 2] + ')';
+      ctx.fillRect(bx, py + y, bw, 1);
+    }
+    ctx.strokeStyle = GRID;
+    ctx.strokeRect(bx + 0.5, py + 0.5, bw - 1, ph - 1);
+    ctx.fillStyle = TEXT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (let db = DB_MIN; db <= DB_MAX; db += 10) {
+      const y = py + (1 - (db - DB_MIN) / (DB_MAX - DB_MIN)) * (ph - 1);
+      ctx.fillText(db + '', bx + bw + 4, y);
+    }
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('dB', bx, py - 1);
+  }
+
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(draw).observe(container);
+  else window.addEventListener('resize', draw);
+  draw();    // axes and colour bar before any data arrives
+
+  // ---- data ----------------------------------------------------------------
   App.onFrame((frame) => {
     const w = frame.window;
     if (!w || !w.value) return;
 
-    if (w.reset) {                        // new connection: start fresh
-      buf.length = 0;
-      xs.length = 0;
-      ys.forEach((y) => { y.length = 0; });
-      startMs = performance.now();
+    let changed = false;
+
+    if (w.reset) {                         // new connection: start fresh
+      cols.length = 0;
+      wpos = 0; filled = 0; sinceHop = 0;
+      changed = true;
     }
-    if (w.dropped > 0) buf.length = 0;    // gap in the data: don't FFT across it
-
-    for (let i = 0; i < w.value.length; i++) buf.push(w.value[i]);
-    if (buf.length > N) buf.splice(0, buf.length - N);
-
-    const now = performance.now();
-    if (buf.length < N || now - lastRun < HOP_MS) return;
-    lastRun = now;
-
-    const levels = bandLevels(buf);
-    const t = (now - startMs) / 1000;     // plotted at the window's end time
-    xs.push(t);
-    levels.forEach((db, i) => ys[i].push(db));
-
-    while (xs.length && xs[0] < t - HISTORY_S) {
-      xs.shift();
-      ys.forEach((y) => y.shift());
+    if (w.dropped > 0) {                   // gap: don't FFT across it, mark it
+      filled = 0; sinceHop = 0;
+      pushCol(null);
+      changed = true;
     }
 
-    const data = [xs, ...ys];
-    if (chart === null) chart = new uPlot(opts, data, target);
-    else chart.setData(data);
+    for (let i = 0; i < w.value.length; i++) {
+      ring[wpos] = w.value[i];
+      wpos = (wpos + 1) % N;
+      if (filled < N) filled++;
+      sinceHop++;
+      if (filled === N && sinceHop >= HOP) {
+        sinceHop = 0;
+        pushCol(spectrum());
+        changed = true;
+      }
+    }
+
+    if (changed) draw();
   });
 })();
 </script>

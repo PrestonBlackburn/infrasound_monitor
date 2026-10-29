@@ -34,23 +34,23 @@ class Channel:
     to resolve.
     """
 
-    NOISE_ALPHA = 0.3        # one-pole low-pass coefficient
-    NOISE_SIGMA = 6.0
+    NOISE_ALPHA = 1.2       # one-pole low-pass coefficient
+    NOISE_SIGMA = 28.0
     EVENT_PROB = 1 / 400.0   # about one transient per 4 s
     EVENT_DECAY = 0.97       # per sample, about a 0.3 s time constant
-    EVENT_AMP = (40.0, 120.0)
+    EVENT_AMP = (60.0, 120.0)
 
     def __init__(self, seed: int | None = None, t0_ms: int = 5000) -> None:
         self.rng = random.Random(seed)
         self.ring: deque[tuple[int, int]] = deque(maxlen=RING_LEN)  # (t_ms, mpa)
-        self.head = 0              # total samples ever generated
+        self.head = 0              # total samples ever generated (s_head)
         self.t0_ms = t0_ms         # device clock at sample 0
         self._noise = 0.0
         self._event = 0.0
 
     def _step(self) -> tuple[int, int]:
         t = self.head / SAMPLE_HZ
-        slow = 18.0 * math.sin(TWO_PI * 0.13 * t) + 9.0 * math.sin(TWO_PI * 0.7 * t)
+        slow = 24.0 * math.sin(TWO_PI * 0.13 * t) + 9.0 * math.sin(TWO_PI * 0.7 * t)
 
         self._noise += self.NOISE_ALPHA * (
             self.rng.gauss(0.0, self.NOISE_SIGMA) - self._noise
@@ -69,6 +69,7 @@ class Channel:
             self.head += 1
 
     def cursor_latest(self, back: int = 0) -> int:
+        """Same as state_cursor_latest(): clamp `back` to what the ring holds."""
         return self.head - min(back, len(self.ring))
 
     def read_since(self, cursor: int, max_n: int) -> tuple[int, list[tuple[int, int]], int]:
@@ -79,7 +80,7 @@ class Channel:
             dropped = oldest - cursor
             cursor = oldest
         elif cursor > self.head:
-            cursor = self.head
+            cursor = self.head      # stale cursor from before a reset; resync
         n = min(self.head - cursor, max_n)
         start = cursor - oldest
         return cursor + n, list(islice(self.ring, start, start + n)), dropped
@@ -90,7 +91,12 @@ class Channel:
 
 class MockState:
     """Drives the mock at a fixed cadence and publishes to any number of
-    clients, so every browser tab sees the same stream."""
+    clients, so every browser tab sees the same stream.
+
+    Mirrors state.c: state_publish() writes the snapshot but leaves wifi_up
+    alone, state_set_wifi() owns that field, and seq bumps on every publish and
+    on every wifi change.
+    """
 
     TICK_SECONDS = 0.1                     # the firmware publishes every 100 ms
     SAMPLES_PER_TICK = round(SAMPLE_HZ * TICK_SECONDS)
@@ -110,11 +116,16 @@ class MockState:
         self._thread: threading.Thread | None = None
         self._running = False
 
-        self._refresh()
+        self._refresh()                 # first state_publish()
+        self._set_wifi_locked(True)     # then the got-IP event
+
+    def _elapsed_ms(self) -> int:
+        """Milliseconds since boot, NOT wrapped (esp_timer is int64 microseconds)."""
+        return self.channel.t0_ms + int((time.monotonic() - self._boot) * 1000)
 
     def now_ms(self) -> int:
-        """Device clock, ms since boot (uint32)."""
-        return (self.channel.t0_ms + int((time.monotonic() - self._boot) * 1000)) & U32
+        """Device clock as webserver.c's now_ms() sends it: uint32 milliseconds."""
+        return self._elapsed_ms() & U32
 
     # ---- the tick -------------------------------------------------------
 
@@ -125,9 +136,25 @@ class MockState:
             self._outage_until = now + self.channel.rng.uniform(*self.OUTAGE_SECONDS)
         if self._outage_until and now >= self._outage_until:
             self._outage_until = 0.0
+        self._set_wifi_locked(self._outage_until == 0.0)
+
+    def _set_wifi_locked(self, up: bool) -> None:
+        """state_set_wifi(): only a real change touches the snapshot or seq."""
+        if self._snap.wifi_up != up:
+            self._snap = replace(self._snap, wifi_up=up)
+            self._seq += 1
+
+    def set_wifi(self, up: bool) -> None:
+        with self._cv:
+            self._set_wifi_locked(up)
+            self._cv.notify_all()
 
     def _refresh(self) -> None:
-        """Values the firmware would read from esp_timer, heap and wifi."""
+        """The snapshot the firmware would publish (esp_timer, heap, sensor).
+
+        wifi_up is deliberately absent: state_publish() preserves the current
+        value, so replace() leaves it untouched.
+        """
         rng = self.channel.rng
 
         heap = max(120_000, min(260_000, self._snap.heap_free + rng.randint(-900, 700)))
@@ -147,21 +174,20 @@ class MockState:
 
         self._snap = replace(
             self._snap,
-            uptime_s=self.now_ms() // 1000,
+            uptime_s=self._elapsed_ms() // 1000,   # not wrapped, unlike now_ms
             heap_free=heap,
             raw_pressure_mpa=float(recent[-1]) if recent else 0.0,
             raw_db=raw_db,
             temperature_c=temperature_c,
-            wifi_up=self._outage_until == 0.0,
         )
 
     def tick(self) -> None:
         """Advance one step, synchronously. Used by the loop and by tests."""
         with self._cv:
             self.channel.generate(self.SAMPLES_PER_TICK)
-            self._maybe_outage()
             self._refresh()
-            self._seq += 1
+            self._seq += 1              # state_publish() bumps seq every call
+            self._maybe_outage()        # state_set_wifi() may bump it again
             self._cv.notify_all()
 
     def _run(self) -> None:
@@ -201,7 +227,7 @@ class MockState:
             payload["temperature_c"] = round(payload["temperature_c"], 1)
             payload["seq"] = self._seq
             payload["now_ms"] = self.now_ms()
-            if reset or samples:
+            if reset or samples or dropped:
                 t0 = samples[0][0] if samples else payload["now_ms"]
                 payload["window"] = {
                     "reset": reset,
@@ -216,7 +242,8 @@ class MockState:
         """Block until the sequence advances.
 
         Returns the new seq, or None if the timeout expired -- a state-only
-        frame is still owed to the client in that case, as on the device.
+        frame is still owed to the client in that case, as on the device
+        (SSE_KEEPALIVE_TICKS: at least one frame per second).
         """
         with self._cv:
             if not self._cv.wait_for(lambda: self._seq != last_seq, timeout=timeout):

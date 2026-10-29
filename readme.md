@@ -36,5 +36,12 @@ Bump up FREERTOS HZ for a faster sample rate:
 CONFIG_FREERTOS_HZ=1000
 ```
 
-Update flash size (need >1MB)
-menuconfig -> partition table -> partition table -> "single factory app (large), no OTA
+Update flash size (need >1MB)  
+menuconfig -> partition table -> partition table -> "single factory app (large), no OTA  
+
+## Testing
+
+**Test the web components**  
+```bash
+python ./tools/web/preview.py
+```
