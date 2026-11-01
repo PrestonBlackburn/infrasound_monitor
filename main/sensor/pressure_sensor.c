@@ -118,8 +118,9 @@ static esp_err_t sensor_hw_init(void) {
     ESP_RETURN_ON_ERROR(i2c_master_transmit(s_dev, stop_cmd, sizeof(stop_cmd), 100), TAG, "stop cmd");
     vTaskDelay(pdMS_TO_TICKS(20));
 
-    // Continuous mode, differential pressure, no averaging (0.5 ms update)
-    const uint8_t start_cmd[] = {0x36, 0x1E};
+    // Continuous mode, differential pressure, no averaging (0.5 ms update) - {0x36, 0x1E};
+    // Continuous mode, differential pressure, with averaging - {0x36, 0x15};
+    const uint8_t start_cmd[] = {0x36, 0x15};
     ESP_RETURN_ON_ERROR(i2c_master_transmit(s_dev, start_cmd, sizeof(start_cmd), 1000), TAG, "start cmd");
     vTaskDelay(pdMS_TO_TICKS(15));   // first result is ready after ~8 ms
 

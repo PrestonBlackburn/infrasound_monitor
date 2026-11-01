@@ -9,3 +9,4 @@ sdkconfig.secrets
 package-lock.json
 package.json
 node_modules/**
+config_*.h

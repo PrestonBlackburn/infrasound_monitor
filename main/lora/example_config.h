@@ -1,0 +1,30 @@
+
+#ifndef RADIOLIB_LORAWAN_JOIN_EUI
+#define RADIOLIB_LORAWAN_JOIN_EUI  0x0000000000000000
+#endif
+
+// 
+#ifndef RADIOLIB_LORAWAN_DEV_EUI
+#define RADIOLIB_LORAWAN_DEV_EUI 0x0000000000000000 
+#endif
+
+// 
+#ifndef RADIOLIB_LORAWAN_APP_KEY
+#define RADIOLIB_LORAWAN_APP_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+#endif 
+
+// 
+#ifndef RADIOLIB_LORAWAN_NWK_KEY  
+#define RADIOLIB_LORAWAN_NWK_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+#endif
+
+#define LORAWAN_UPLINK_USER_PORT  2
+#define LORAWAN_UPLINK_DATA_RATE  3
+
+#define LORAWAN_UPLINK_PERIOD     10000 // ms
+
+#define LORAWAN_UPLINK_DATA_MAX   51 // byte
+
+const LoRaWANBand_t Region = US915;
+const uint8_t subBand = 2;
+
