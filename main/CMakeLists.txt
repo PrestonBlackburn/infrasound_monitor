@@ -53,6 +53,7 @@ idf_component_register(
         "web/web_frame.c"
         "web/web_assets.c"
         "battery/battery.c"
+        "lora/lorawan.c"
     PRIV_REQUIRES 
         esp_driver_i2c 
         esp_timer 
@@ -67,6 +68,7 @@ idf_component_register(
         esp_eth
         nvs_flash
         esp_adc
+        RadioLib
         EMBED_FILES ${WEB_GZ}
     INCLUDE_DIRS 
         "." 
@@ -75,4 +77,5 @@ idf_component_register(
         "local_display"
         "web"
         "battery"
+        "lora"
 )

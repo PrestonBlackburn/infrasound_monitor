@@ -11,6 +11,7 @@
 #include "state.h"
 #include "webserver.h"
 #include "battery.h"
+#include "lorawan.h"
 
 void app_main(void)
 {
@@ -27,6 +28,8 @@ void app_main(void)
     ESP_ERROR_CHECK(battery_start());
     ESP_ERROR_CHECK(sensor_start());
     ESP_ERROR_CHECK(display_start());
+    ESP_ERROR_CHECK(lorawan_radio_init());   // shared SPI + SX1262 up, idle
+    ESP_ERROR_CHECK(start_lorawan_task());
     ESP_ERROR_CHECK(webserver_start());
     ESP_ERROR_CHECK(wifi_init_sta());
 
