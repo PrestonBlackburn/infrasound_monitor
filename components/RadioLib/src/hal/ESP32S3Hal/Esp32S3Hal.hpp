@@ -5,13 +5,16 @@
 
 // --- Esp32S3Hal -------------------------------------------------------------
 
+
 class Esp32S3Hal : public RadioLibHal {
 public:
     explicit Esp32S3Hal(int8_t sck, int8_t miso, int8_t mosi);
 
+    void setCsPin(int8_t pin) { csPin_ = pin; }
     // Lifecycle
     void init() override;
     void term() override;
+    void yield() override;
 
     // GPIO
     void pinMode(uint32_t pin, uint32_t mode) override;
@@ -35,6 +38,8 @@ public:
     void spiEnd() override;
 
 private:
+    uint8_t csPin_ = -1;
+    bool    busHeld_ = false;
     uint8_t spiTransferByte(uint8_t b);
 
     static constexpr const char* TAG = "RadioLibHAL";

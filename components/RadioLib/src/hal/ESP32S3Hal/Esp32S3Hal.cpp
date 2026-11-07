@@ -15,11 +15,19 @@ Esp32S3Hal::Esp32S3Hal(int8_t sck, int8_t miso, int8_t mosi)
 
 
 void Esp32S3Hal::init() {
+    esp_err_t err = gpio_install_isr_service(0);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {   // INVALID_STATE = already installed
+        ESP_LOGE(TAG, "gpio_install_isr_service: %s", esp_err_to_name(err));
+    }
     spiBegin();
 }
 
 void Esp32S3Hal::term() {
     spiEnd();
+}
+
+void Esp32S3Hal::yield() {
+    vTaskDelay(1);   // let IDLE0 and lower-priority tasks run
 }
 
 // GPIO
@@ -36,7 +44,21 @@ void Esp32S3Hal::pinMode(uint32_t pin, uint32_t mode) {
 
 void Esp32S3Hal::digitalWrite(uint32_t pin, uint32_t value) {
     if (pin == RADIOLIB_NC) return;
-    gpio_set_level(static_cast<gpio_num_t>(pin), value ? 1 : 0);
+    const gpio_num_t g = static_cast<gpio_num_t>(pin);
+
+    if ((int)pin == csPin_ && spi_) {
+        if (!value && !busHeld_) {                 // NSS going low: own the bus first
+            spi_device_acquire_bus(spi_, portMAX_DELAY);
+            busHeld_ = true;
+        }
+        gpio_set_level(g, value ? 1 : 0);
+        if (value && busHeld_) {                   // NSS back high: free the bus
+            spi_device_release_bus(spi_);
+            busHeld_ = false;
+        }
+        return;
+    }
+    gpio_set_level(g, value ? 1 : 0);
 }
 
 uint32_t Esp32S3Hal::digitalRead(uint32_t pin) {
@@ -94,26 +116,41 @@ long Esp32S3Hal::pulseIn(uint32_t pin, uint32_t state, RadioLibTime_t timeout) {
 }
 
 // SPI
+// void Esp32S3Hal::spiBegin() {
+//     spi_bus_config_t bus = {};
+//     bus.mosi_io_num = spiMOSI_;
+//     bus.miso_io_num = spiMISO_;
+//     bus.sclk_io_num = spiSCK_;
+//     bus.quadwp_io_num = -1;
+//     bus.quadhd_io_num = -1;
+
+//     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO);
+//     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+//         ESP_LOGE(TAG, "spi_bus_initialize: %s", esp_err_to_name(err));
+//     }
+
+//     spi_device_interface_config_t dev = {};
+//     dev.mode = 0;
+//     dev.clock_speed_hz = 4 * 1000 * 1000;
+//     dev.spics_io_num = -1;
+//     dev.queue_size = 1;
+
+//     err = spi_bus_add_device(SPI2_HOST, &dev, &spi_);
+//     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+//         ESP_LOGE(TAG, "spi_bus_add_device: %s", esp_err_to_name(err));
+//     }
+// }
+
 void Esp32S3Hal::spiBegin() {
-    spi_bus_config_t bus = {};
-    bus.mosi_io_num = spiMOSI_;
-    bus.miso_io_num = spiMISO_;
-    bus.sclk_io_num = spiSCK_;
-    bus.quadwp_io_num = -1;
-    bus.quadhd_io_num = -1;
-
-    esp_err_t err = spi_bus_initialize(SPI3_HOST, &bus, SPI_DMA_CH_AUTO);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGE(TAG, "spi_bus_initialize: %s", esp_err_to_name(err));
-    }
-
+    // Bus is already initialized globally by display_start() on SPI2_HOST.
+    // We only need to add the radio device handle to the bus.
     spi_device_interface_config_t dev = {};
     dev.mode = 0;
     dev.clock_speed_hz = 4 * 1000 * 1000;
-    dev.spics_io_num = -1;
+    dev.spics_io_num = -1;             // Managed manually via digitalWrite for bus locking
     dev.queue_size = 1;
 
-    err = spi_bus_add_device(SPI3_HOST, &dev, &spi_);
+    esp_err_t err = spi_bus_add_device(SPI2_HOST, &dev, &spi_);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         ESP_LOGE(TAG, "spi_bus_add_device: %s", esp_err_to_name(err));
     }
@@ -163,5 +200,6 @@ void Esp32S3Hal::spiEnd() {
         (void)spi_bus_remove_device(spi_);
         spi_ = nullptr;
     }
-    (void)spi_bus_free(SPI3_HOST);
+    // shared spi, so don't tear down unless display is also gone
+    // (void)spi_bus_free(SPI2_HOST);
 }

@@ -53,7 +53,7 @@ idf_component_register(
         "web/web_frame.c"
         "web/web_assets.c"
         "battery/battery.c"
-        "lora/lorawan.c"
+        "lora/lorawan.cpp"
     PRIV_REQUIRES 
         esp_driver_i2c 
         esp_timer 

@@ -32,7 +32,9 @@ static const char *TAG = "display";
 #define DISPLAY_PIN_DC             4
 #define DISPLAY_PIN_RST            3
 #define DISPLAY_PIN_CS             5    // active low
+#define DISPLAY_PIN_MISO           10   // init for lora radio eventhough display doesn't need
 // no backlight pin is wired
+
 
 #define PAGE_BUTTON_GPIO           6    // pull-up button
 #define BUTTON_POLL_MS             20   // two matching samples = 40 ms debounce
@@ -139,7 +141,7 @@ esp_err_t display_start(void)
     spi_bus_config_t buscfg = {
         .sclk_io_num = DISPLAY_PIN_SCLK,
         .mosi_io_num = DISPLAY_PIN_MOSI,
-        .miso_io_num = -1,
+        .miso_io_num = DISPLAY_PIN_MISO,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .max_transfer_sz = DISPLAY_H_RES * 80 * sizeof(uint16_t),
