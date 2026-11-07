@@ -1,4 +1,5 @@
 // structs to be shared between python parser + main C code
+// state_struct.h
 
 typedef struct {
     uint32_t uptime_s;
@@ -8,11 +9,3 @@ typedef struct {
     float    temperature_c;
     bool     wifi_up;
 } state_t;
-
-typedef struct {
-    uint32_t    sample_time;
-    float       db_1_hz;
-    float       db_5_hz;
-    float       db_10_hz;
-    float       db_20_hz;
-} db_measure_t;

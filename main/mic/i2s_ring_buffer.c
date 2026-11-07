@@ -1,11 +1,12 @@
+// i2s_ring_buffer.c
 
-#include "mic_ring_buffer.h"
+#include "i2s_ring_buffer.h"
 
-static inline uint32_t count_locked(const measurement_ring_buffer_t *r) {
+static inline uint32_t count_locked(const i2s_ring_buffer_t *r) {
     return r->head - r->tail; // free counters
 }
 
-int measurement_ring_init(measurement_ring_buffer_t *r, raw_sample_t *storage, uint32_t cap_pow2) {
+int i2s_ring_init(i2s_ring_buffer_t *r, i2s_sample_t *storage, uint32_t cap_pow2) {
     // invalid setup case
     if (!r || !storage || cap_pow2 == 0 || (cap_pow2 & (cap_pow2 -1)) != 0) {
         return -1;
@@ -20,7 +21,7 @@ int measurement_ring_init(measurement_ring_buffer_t *r, raw_sample_t *storage, u
     return  r->lock ? 0 : -1;
 }
 
-void measurement_ring_push(measurement_ring_buffer_t *r, const raw_sample_t *s) {
+void i2s_ring_push(i2s_ring_buffer_t *r, const i2s_sample_t *s) {
     // lock and write struct
     xSemaphoreTake(r->lock, portMAX_DELAY);
     // full/drop oldest case
@@ -33,7 +34,7 @@ void measurement_ring_push(measurement_ring_buffer_t *r, const raw_sample_t *s) 
     xSemaphoreGive(r->lock);
 }
 
-uint32_t measurement_ring_drain(measurement_ring_buffer_t *r, raw_sample_t *out, uint32_t max) {
+uint32_t i2s_ring_drain(i2s_ring_buffer_t *r, i2s_sample_t *out, uint32_t max) {
     // lock before draining structs
     xSemaphoreTake(r->lock, portMAX_DELAY);
     uint32_t n = count_locked(r);
@@ -49,7 +50,7 @@ uint32_t measurement_ring_drain(measurement_ring_buffer_t *r, raw_sample_t *out,
 }
 
 
-uint32_t measurement_ring_count(measurement_ring_buffer_t *r) {
+uint32_t i2s_ring_count(i2s_ring_buffer_t *r) {
     // lock before getting the count
     xSemaphoreTake(r->lock, portMAX_DELAY);
     uint32_t n = count_locked(r);
@@ -57,7 +58,7 @@ uint32_t measurement_ring_count(measurement_ring_buffer_t *r) {
     return n;
 }
 
-uint32_t measurement_ring_dropped(measurement_ring_buffer_t *r) {
+uint32_t i2s_ring_dropped(i2s_ring_buffer_t *r) {
     xSemaphoreTake(r->lock, portMAX_DELAY);
     uint32_t d = r->dropped;
     xSemaphoreGive(r->lock);

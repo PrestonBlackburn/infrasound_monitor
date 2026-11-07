@@ -20,6 +20,12 @@ typedef struct {
     uint32_t t_ms; // time since boot (ms)
 } pub_sample_t;
 
+// new pub sample and set of functions or use existing?
+typedef struct {
+    int32_t dbFS;   // raw i2s readings
+    uint32_t t_ms; // time since boot (ms)
+} i2s_sample_t;
+
 int state_init(void);
 // append a batch of readings (writers)
 void state_publish(const pub_sample_t *s, uint32_t n, const state_t *snapshot);
