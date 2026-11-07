@@ -11,6 +11,7 @@
 #include "state.h"
 #include "webserver.h"
 #include "battery.h"
+#include "lorawan.h"
 
 void app_main(void)
 {
@@ -26,7 +27,12 @@ void app_main(void)
     // Create the read (from sensor) and process (shared state) tasks
     ESP_ERROR_CHECK(battery_start());
     ESP_ERROR_CHECK(sensor_start());
+    // display inits SPI bus, 
+    // so it must be before the lorawan radio init
+    // which shares the SPI bus
     ESP_ERROR_CHECK(display_start());
+    ESP_ERROR_CHECK(lorawan_radio_init());   // shared SPI + SX1262 up, idle
+    ESP_ERROR_CHECK(start_lorawan_task());
     ESP_ERROR_CHECK(webserver_start());
     ESP_ERROR_CHECK(wifi_init_sta());
 

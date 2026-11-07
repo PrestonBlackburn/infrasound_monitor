@@ -45,3 +45,39 @@ menuconfig -> partition table -> partition table -> "single factory app (large),
 ```bash
 python ./tools/web/preview.py
 ```
+
+
+## Program Overview
+
+### Core Setup  
+**state_init()**  
+- Setup summary shared struct  
+- Uses FreeRTOS `SemaphoreHandle_t` helpers to protect shared summary state and sensor sample ring buffer   
+- Shared summary state between pressure sensor (only writer), and readers - display pages and webserver  
+- state_read_since() handles safe ring buffer reads  
+
+**battery_start()**  
+- Setup ADC for battery voltage reading  
+- Start task to monitor battery voltage level  
+- Uses FreeRTOS `SemaphoreHandle_t` to share battery reading with display  
+
+**sensor_start()**  
+- kicks off 3 tasks - sensor_read_task, sensor_process_task, sensor_log_task  
+- sensor_read_task - read from sensor and update ring buffer   
+- sensor_process_task - process the sensor reading into temp + pressure values  
+- sensor_log_task - troubleshooting logging task    
+
+**display_start()**  
+- Start SPI comms for lvgl display (st7735 tft chip)  
+- Setup initial UI pages  
+
+**webserver_start()**    
+- Start the webserver  
+
+**wifi_init_sta()**    
+- Start wifi connectivity  
+
+### Important structures
+- Ring buffer - read and convert raw sensor values to the ring buffer  
+    - process the ring buffer to create a summary
+- state_t summarized window of stats for UI and webpage

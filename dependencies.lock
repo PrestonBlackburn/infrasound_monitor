@@ -97,7 +97,8 @@ direct_dependencies:
 - espressif/cjson
 - espressif/esp_lcd_touch_stmpe610
 - espressif/mdns
+- idf
 - lvgl/lvgl
-manifest_hash: c886abe373a8fc410b7c0ddd1bb5c8bf0e800f075e224bd4ba734a04858b30f8
+manifest_hash: f2ca2f3e285ba97a45162a87f263134864e1a3fa7862258d4cfea51d978e758e
 target: esp32s3
 version: 3.0.0
