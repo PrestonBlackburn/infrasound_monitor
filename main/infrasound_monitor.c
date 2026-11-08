@@ -12,7 +12,7 @@
 #include "webserver.h"
 #include "battery.h"
 #include "lorawan.h"
-#include "i2s_mic.h"
+// #include "i2s_mic.h"
 
 void app_main(void)
 {
@@ -28,7 +28,7 @@ void app_main(void)
     // Create the read (from sensor) and process (shared state) tasks
     ESP_ERROR_CHECK(battery_start());
     ESP_ERROR_CHECK(sensor_start());
-    ESP_ERROR_CHECK(i2s_start());
+    // ESP_ERROR_CHECK(i2s_start());
     // display inits SPI bus, 
     // so it must be before the lorawan radio init
     // which shares the SPI bus

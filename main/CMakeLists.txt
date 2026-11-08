@@ -41,8 +41,8 @@ idf_component_register(
     SRCS 
         "infrasound_monitor.c" 
         "sensor/pressure_sensor.c" 
-        "sensor/raw_ring_buffer.c" 
         "state/state.c" 
+        "state/generic_ring_buffer.c"
         "local_display/display.c"
         "local_display/ui_chart.c"
         "local_display/ui_metrics.c"
@@ -54,6 +54,7 @@ idf_component_register(
         "web/web_assets.c"
         "battery/battery.c"
         "lora/lorawan.cpp"
+
     PRIV_REQUIRES 
         esp_driver_i2c 
         esp_timer 
@@ -69,6 +70,7 @@ idf_component_register(
         nvs_flash
         esp_adc
         RadioLib
+        esp-dsp
         EMBED_FILES ${WEB_GZ}
     INCLUDE_DIRS 
         "." 

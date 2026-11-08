@@ -14,10 +14,17 @@
 #include "esp_timer.h"
 
 #include "pressure_sensor.h"
-#include "raw_ring_buffer.h"
+// #include "raw_ring_buffer.h"
+#include "generic_ring_buffer.h"
 #include "state.h"
 
 static const char *TAG = "pressure_sensor";
+
+typedef struct {
+    int16_t p_raw;
+    int16_t t_raw;
+    uint32_t t_ms;
+} raw_sample_t;
 
 // Sensor hardware
 #define I2C_MASTER_SCL_IO           9/*!< GPIO number used for I2C master clock */
@@ -54,11 +61,14 @@ static volatile bool s_verbose  =
 static volatile uint32_t s_reads_ok, s_i2c_errs, s_crc_errs;
 
 // init buffer
-static i2c_master_dev_handle_t s_dev;
-static measurement_ring_buffer_t s_ring;
+// static measurement_ring_buffer_t s_ring;
 static raw_sample_t s_ring_storage[RAW_RING_LEN];
+static generic_ring_buffer_t s_ring;
 
+// init i2c handle
+static i2c_master_dev_handle_t s_dev;
 
+// logging setup
 void sensor_set_verbose(bool on) {
     s_verbose = on;
     ESP_LOGI(TAG, "verbose logging %s", on ? "on" : "off");
@@ -167,7 +177,8 @@ void sensor_read_task(void *arg) {
             .t_raw    = (int16_t)(uint16_t)((buf[3] << 8) | buf[4]),
             .t_ms = t_ms,
         };
-        measurement_ring_push(&s_ring, &s);
+        // measurement_ring_push(&s_ring, &s);
+        generic_ring_push(&s_ring, &s);
         s_reads_ok++;
     }
 }
@@ -257,7 +268,8 @@ void sensor_process_task(void *pvParameters) {
         uint32_t n;
         // loop if behind
         do {
-            n = measurement_ring_drain(&s_ring, batch, BATCH_MAX);
+            // n = measurement_ring_drain(&s_ring, batch, BATCH_MAX);
+            n = generic_ring_drain(&s_ring, batch, BATCH_MAX);
             handle_batch(&ctx, batch, n);
         } while (n == BATCH_MAX);
     }
@@ -272,7 +284,9 @@ static void sensor_log_task(void *arg)
     for (;;) {
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(1000));
 
-        uint32_t dropped = measurement_ring_dropped(&s_ring);
+        // uint32_t dropped = measurement_ring_dropped(&s_ring);
+        uint32_t dropped = generic_ring_dropped(&s_ring);
+
         if (dropped != dropped_seen) {
             ESP_LOGW(TAG, "raw ring overflow: %" PRIu32 " samples lost", dropped - dropped_seen);
         }
@@ -282,7 +296,9 @@ static void sensor_log_task(void *arg)
             uint32_t reads = s_reads_ok;
             ESP_LOGI(TAG, "reads=%" PRIu32 " (+%" PRIu32 ") ring=%" PRIu32
                           " dropped=%" PRIu32 " mpa=%.2f db=%.1f temp=%.1f",
-                     reads, reads - reads_seen, measurement_ring_count(&s_ring), dropped,
+                    //  reads, reads - reads_seen, measurement_ring_count(&s_ring), dropped,
+                    //  st.raw_pressure_mpa, st.raw_db, st.temperature_c);
+                    reads, reads - reads_seen, generic_ring_count(&s_ring), dropped,
                      st.raw_pressure_mpa, st.raw_db, st.temperature_c);
             reads_seen = reads;
         }
@@ -293,8 +309,11 @@ static void sensor_log_task(void *arg)
 
 // public entry point
 esp_err_t sensor_start(void) {
-    ESP_RETURN_ON_FALSE(measurement_ring_init(&s_ring, s_ring_storage, RAW_RING_LEN) == 0,
-        ESP_ERR_NO_MEM, TAG, "raw ring init");
+    // ESP_RETURN_ON_FALSE(measurement_ring_init(&s_ring, s_ring_storage, RAW_RING_LEN) == 0,
+    //     ESP_ERR_NO_MEM, TAG, "raw ring init");
+    ESP_RETURN_ON_FALSE(generic_ring_init(&s_ring, s_ring_storage, sizeof(raw_sample_t), RAW_RING_LEN) == 0,
+        ESP_ERR_NO_MEM, TAG, "raw sensor ring init");
+
     ESP_RETURN_ON_ERROR(sensor_hw_init(), TAG, "sensor init failed");
     // Reader above the processor so a busy processor can't delay sampling.
     // Stack depth is in BYTES on ESP-IDF.
