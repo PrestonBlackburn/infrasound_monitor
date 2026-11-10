@@ -20,6 +20,7 @@
 #include "ui_metrics.h"
 #include "ui_access_point.h"
 #include "ui_battery.h"
+#include "ui_waveform_chart.h"
 #include "wifi.h"
 
 static const char *TAG = "display";
@@ -56,7 +57,8 @@ static const char *TAG = "display";
 #define PAGE_CHART                 0
 #define PAGE_METRICS               1
 #define PAGE_AP                    2
-#define NUM_PAGES                  3
+#define PAGE_WAVEFORM              3
+#define NUM_PAGES                  4
 
 // decide if AP page should be shown
 static bool page_available(int idx) {
@@ -209,9 +211,12 @@ esp_err_t display_start(void)
     ESP_RETURN_ON_ERROR(gpio_config(&btn_cfg), TAG, "button gpio");
 
     _lock_acquire(&s_lvgl_lock);
+
     s_pages[PAGE_CHART] = ui_chart_create();
     s_pages[PAGE_METRICS] = ui_metrics_create();
     s_pages[PAGE_AP] = ui_ap_page_create();
+    s_pages[PAGE_WAVEFORM] = ui_waveform_chart_create();
+
     ui_battery_create();
     lv_screen_load(s_pages[0]);
     lv_timer_create(button_poll_cb, BUTTON_POLL_MS, NULL);

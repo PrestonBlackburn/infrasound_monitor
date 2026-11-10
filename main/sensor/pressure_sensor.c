@@ -61,7 +61,6 @@ static volatile bool s_verbose  =
 static volatile uint32_t s_reads_ok, s_i2c_errs, s_crc_errs;
 
 // init buffer
-// static measurement_ring_buffer_t s_ring;
 static raw_sample_t s_ring_storage[RAW_RING_LEN];
 static generic_ring_buffer_t s_ring;
 
@@ -177,7 +176,6 @@ void sensor_read_task(void *arg) {
             .t_raw    = (int16_t)(uint16_t)((buf[3] << 8) | buf[4]),
             .t_ms = t_ms,
         };
-        // measurement_ring_push(&s_ring, &s);
         generic_ring_push(&s_ring, &s);
         s_reads_ok++;
     }
@@ -268,7 +266,6 @@ void sensor_process_task(void *pvParameters) {
         uint32_t n;
         // loop if behind
         do {
-            // n = measurement_ring_drain(&s_ring, batch, BATCH_MAX);
             n = generic_ring_drain(&s_ring, batch, BATCH_MAX);
             handle_batch(&ctx, batch, n);
         } while (n == BATCH_MAX);
@@ -284,7 +281,6 @@ static void sensor_log_task(void *arg)
     for (;;) {
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(1000));
 
-        // uint32_t dropped = measurement_ring_dropped(&s_ring);
         uint32_t dropped = generic_ring_dropped(&s_ring);
 
         if (dropped != dropped_seen) {
@@ -296,8 +292,6 @@ static void sensor_log_task(void *arg)
             uint32_t reads = s_reads_ok;
             ESP_LOGI(TAG, "reads=%" PRIu32 " (+%" PRIu32 ") ring=%" PRIu32
                           " dropped=%" PRIu32 " mpa=%.2f db=%.1f temp=%.1f",
-                    //  reads, reads - reads_seen, measurement_ring_count(&s_ring), dropped,
-                    //  st.raw_pressure_mpa, st.raw_db, st.temperature_c);
                     reads, reads - reads_seen, generic_ring_count(&s_ring), dropped,
                      st.raw_pressure_mpa, st.raw_db, st.temperature_c);
             reads_seen = reads;
@@ -309,8 +303,6 @@ static void sensor_log_task(void *arg)
 
 // public entry point
 esp_err_t sensor_start(void) {
-    // ESP_RETURN_ON_FALSE(measurement_ring_init(&s_ring, s_ring_storage, RAW_RING_LEN) == 0,
-    //     ESP_ERR_NO_MEM, TAG, "raw ring init");
     ESP_RETURN_ON_FALSE(generic_ring_init(&s_ring, s_ring_storage, sizeof(raw_sample_t), RAW_RING_LEN) == 0,
         ESP_ERR_NO_MEM, TAG, "raw sensor ring init");
 

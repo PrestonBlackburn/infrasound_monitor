@@ -41,13 +41,16 @@ idf_component_register(
     SRCS 
         "infrasound_monitor.c" 
         "sensor/pressure_sensor.c" 
+        "mic/i2s_mic.c"
         "state/state.c" 
         "state/generic_ring_buffer.c"
+        "state/mic_state.c"
         "local_display/display.c"
         "local_display/ui_chart.c"
         "local_display/ui_metrics.c"
         "local_display/ui_access_point.c"
         "local_display/ui_battery.c"
+        "local_display/ui_mic_chart.c"
         "web/wifi.c"
         "web/webserver.c"
         "web/web_frame.c"
@@ -71,10 +74,12 @@ idf_component_register(
         esp_adc
         RadioLib
         esp-dsp
+        esp_driver_i2s
         EMBED_FILES ${WEB_GZ}
     INCLUDE_DIRS 
         "." 
         "sensor" 
+        "mic" 
         "state" 
         "local_display"
         "web"

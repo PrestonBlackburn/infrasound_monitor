@@ -30,6 +30,8 @@ void generic_ring_push(generic_ring_buffer_t *r, const void *s) {
         r->tail++;
         r->dropped++;
     }
+
+
     
     // Copy sample into the correct ring buffer slot
     size_t index = r->head & r->mask;
@@ -38,6 +40,42 @@ void generic_ring_push(generic_ring_buffer_t *r, const void *s) {
     
     xSemaphoreGive(r->lock);
 }
+
+// we need to push batches for i2s/pdm mics - 
+uint32_t generic_ring_push_batch(generic_ring_buffer_t *r, const void *s, uint32_t count) {
+    if (count == 0) return 0;
+    
+    const uint8_t *src_bytes = (const uint8_t *)s;
+    xSemaphoreTake(r->lock, portMAX_DELAY);
+
+    // If the batch exceeds total capacity, only take latest
+    uint32_t space_available = (r->mask + 1) - count_locked(r);
+    if (count > (r->mask + 1)) {
+        // Batch is larger than the entire buffer! Take only the latest part.
+        src_bytes += (count - (r->mask + 1)) * r->element_size;
+        count = r->mask + 1;
+        r->dropped += count; // or track dropped elements
+        r->tail = r->head;   // reset
+    } else if (count > space_available) {
+        uint32_t overflow = count - space_available;
+        r->tail += overflow;
+        r->dropped += overflow;
+    }
+
+    // Copy batch elements into the ring buffer ring
+    for (uint32_t i = 0; i < count; i++) {
+        size_t index = (r->head + i) & r->mask;
+        memcpy(r->buf + (index * r->element_size),
+               src_bytes + (i * r->element_size),
+               r->element_size);
+    }
+    
+    r->head += count;
+    xSemaphoreGive(r->lock);
+    return count;
+}
+
+
 
 uint32_t generic_ring_drain(generic_ring_buffer_t *r, void *out, uint32_t max) {
     xSemaphoreTake(r->lock, portMAX_DELAY);
