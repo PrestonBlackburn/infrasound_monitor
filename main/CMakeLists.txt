@@ -41,19 +41,24 @@ idf_component_register(
     SRCS 
         "infrasound_monitor.c" 
         "sensor/pressure_sensor.c" 
-        "sensor/raw_ring_buffer.c" 
+        "mic/i2s_mic.c"
         "state/state.c" 
+        "state/generic_ring_buffer.c"
+        "state/mic_state.c"
         "local_display/display.c"
         "local_display/ui_chart.c"
         "local_display/ui_metrics.c"
         "local_display/ui_access_point.c"
         "local_display/ui_battery.c"
+        "local_display/ui_mic_chart.c"
         "web/wifi.c"
         "web/webserver.c"
         "web/web_frame.c"
         "web/web_assets.c"
         "battery/battery.c"
         "lora/lorawan.cpp"
+        "expander/expander.c"
+        "expander/mcp32017_io.c"
     PRIV_REQUIRES 
         esp_driver_i2c 
         esp_timer 
@@ -69,13 +74,18 @@ idf_component_register(
         nvs_flash
         esp_adc
         RadioLib
+        esp-dsp
+        esp_driver_i2s
+        esp_io_expander
         EMBED_FILES ${WEB_GZ}
     INCLUDE_DIRS 
         "." 
         "sensor" 
+        "mic" 
         "state" 
         "local_display"
         "web"
         "battery"
         "lora"
+        "expander"
 )

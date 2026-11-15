@@ -26,7 +26,7 @@
 #define USE_LORAWAN 1 // 0=plain lora (for testing); 1=LoraWAN, expects gateway to be up
 
 // for persisting nonces per device when in production
-#define LORAWAN_PERSIST_NVS  1 //persist nonces to nvs 
+#define LORAWAN_PERSIST_NVS  0 //persist nonces to nvs 
 #define LORAWAN_ERASE_NVS_ON_BOOT 0 // for dev, should also flush on server
 #define LORAWAN_SESSION_SAVE_EVERY 1
 

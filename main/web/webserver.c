@@ -1,11 +1,4 @@
-/* Simple HTTP Server Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+// webserver.c
 
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -105,6 +98,8 @@ static esp_err_t send_frame(
     memcpy(buf+6+len, "\n\n", 2);
     return httpd_resp_send_chunk(req, buf, 6+len+2);
 }
+
+// seperate sse stream for i2s or include in existing events?
 
 
 // async request task

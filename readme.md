@@ -39,6 +39,18 @@ CONFIG_FREERTOS_HZ=1000
 Update flash size (need >1MB)  
 menuconfig -> partition table -> partition table -> "single factory app (large), no OTA  
 
+Reduce lvgl buffer size 
+```txt
+...
+```
+
+Enable PSRAM - search SPIRAM (enable if not) -> config (Set Octal Mode PSRAM)  
+Set SPIRAM_SPEED = 80MHz
+set SPIRAM_USE_MALLOC = enabled (fall back to PSRAM if needed, make RAM allocatable using malloc())
+SPIRAM_MALLOC_RESERVE_INTERNAL = 32768 (bump to 32kB)
+SPIRAM_TRY_ALLOCATE_WIFI_LWIP = enable
+Also set flash size to 16MB for esp32s3
+
 ## Testing
 
 **Test the web components**  
@@ -64,7 +76,7 @@ python ./tools/web/preview.py
 **sensor_start()**  
 - kicks off 3 tasks - sensor_read_task, sensor_process_task, sensor_log_task  
 - sensor_read_task - read from sensor and update ring buffer   
-- sensor_process_task - process the sensor reading into temp + pressure values  
+- sensor_process_task - batch the ring buffer value to create the state temp + pressure values. Uses pub sample for the array for sharing accross tasks.    
 - sensor_log_task - troubleshooting logging task    
 
 **display_start()**  
@@ -77,7 +89,12 @@ python ./tools/web/preview.py
 **wifi_init_sta()**    
 - Start wifi connectivity  
 
+**mic_start()**
+- 
+
 ### Important structures
 - Ring buffer - read and convert raw sensor values to the ring buffer  
     - process the ring buffer to create a summary
 - state_t summarized window of stats for UI and webpage
+
+
