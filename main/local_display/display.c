@@ -20,8 +20,10 @@
 #include "ui_metrics.h"
 #include "ui_access_point.h"
 #include "ui_battery.h"
-#include "ui_waveform_chart.h"
+#include "ui_mic_chart.h"
 #include "wifi.h"
+
+#include "expander.h"
 
 static const char *TAG = "display";
 
@@ -37,7 +39,7 @@ static const char *TAG = "display";
 // no backlight pin is wired
 
 
-#define PAGE_BUTTON_GPIO           6    // pull-up button
+// #define PAGE_BUTTON_GPIO           6    // pull-up button
 #define BUTTON_POLL_MS             20   // two matching samples = 40 ms debounce
 
 #define DISPLAY_H_RES              128
@@ -107,8 +109,7 @@ static void lvgl_port_task(void *arg) {
 // Runs inside lv_timer_handler(), so the LVGL lock is already held
 static void button_poll_cb(lv_timer_t *timer)
 {
-    static int stable = 1;          // 1 = released (pull-up), 0 = pressed
-    static int changed_count = 0;
+    static uint32_t last_presses;
     static bool ap_auto_shown;
     if (!ap_auto_shown && wifi_ap_info(NULL, 0, NULL, 0)) {
         ap_auto_shown = true;
@@ -116,23 +117,16 @@ static void button_poll_cb(lv_timer_t *timer)
         lv_screen_load(s_pages[PAGE_AP]);
     }
 
-    int level = gpio_get_level(PAGE_BUTTON_GPIO);
-    if (level == stable) {
-        changed_count = 0;
+    uint32_t presses = expander_button_press_count(EXPANDER_BTN_PAGE);
+    if (presses == last_presses) {
         return;
     }
-    if (++changed_count < 2) {
-        return;                     // wait for a second matching sample (debounce)
-    }
-    stable = level;
-    changed_count = 0;
+    last_presses = presses;
 
-    if (stable == 0) {              // act on press, not release
-        do {
-            s_page_idx = (s_page_idx + 1) % NUM_PAGES;
-        } while (!page_available(s_page_idx));
-        lv_screen_load(s_pages[s_page_idx]);
-    }
+    do {
+        s_page_idx = (s_page_idx + 1) % NUM_PAGES;
+    } while (!page_available(s_page_idx));
+    lv_screen_load(s_pages[s_page_idx]);
 }
 
 
@@ -201,14 +195,14 @@ esp_err_t display_start(void)
                                     LVGL_TASK_PRIORITY, NULL) == pdPASS,
                         ESP_ERR_NO_MEM, TAG, "LVGL task");
 
-    gpio_config_t btn_cfg = {
-        .pin_bit_mask = 1ULL << PAGE_BUTTON_GPIO,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    ESP_RETURN_ON_ERROR(gpio_config(&btn_cfg), TAG, "button gpio");
+    // gpio_config_t btn_cfg = {
+    //     .pin_bit_mask = 1ULL << PAGE_BUTTON_GPIO,
+    //     .mode = GPIO_MODE_INPUT,
+    //     .pull_up_en = GPIO_PULLUP_ENABLE,
+    //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    //     .intr_type = GPIO_INTR_DISABLE,
+    // };
+    // ESP_RETURN_ON_ERROR(gpio_config(&btn_cfg), TAG, "button gpio");
 
     _lock_acquire(&s_lvgl_lock);
 

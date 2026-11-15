@@ -57,7 +57,8 @@ idf_component_register(
         "web/web_assets.c"
         "battery/battery.c"
         "lora/lorawan.cpp"
-
+        "expander/expander.c"
+        "expander/mcp32017_io.c"
     PRIV_REQUIRES 
         esp_driver_i2c 
         esp_timer 
@@ -75,6 +76,7 @@ idf_component_register(
         RadioLib
         esp-dsp
         esp_driver_i2s
+        esp_io_expander
         EMBED_FILES ${WEB_GZ}
     INCLUDE_DIRS 
         "." 
@@ -85,4 +87,5 @@ idf_component_register(
         "web"
         "battery"
         "lora"
+        "expander"
 )

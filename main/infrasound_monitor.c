@@ -16,6 +16,7 @@
 #include "battery.h"
 #include "lorawan.h"
 #include "i2s_mic.h"
+#include "expander.h"
 
 static void log_heap(const char *where) {
     ESP_LOGI("heap", "%s: internal free=%u, largest block=%u, min ever=%u", where,
@@ -36,12 +37,16 @@ void app_main(void)
     state_init();
     log_heap("after init");
 
+
     // setup the I2C comms and tasks for the SDP801 Sensor
     // Create the read (from sensor) and process (shared state) tasks
     ESP_ERROR_CHECK(battery_start());
     ESP_ERROR_CHECK(sensor_start());
     ESP_ERROR_CHECK(i2s_start());
     log_heap("after mic");
+
+    ESP_ERROR_CHECK(expander_start());
+    log_heap("after expander");
 
     // display inits SPI bus, 
     // so it must be before the lorawan radio init
@@ -60,5 +65,4 @@ void app_main(void)
     log_heap("after wifi");
 
     sensor_set_verbose(true);  //override logging setting
-    
 }
